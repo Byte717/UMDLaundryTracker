@@ -7,7 +7,7 @@ function statusText(row) {
   if (row.minutes_remaining !== null && row.minutes_remaining !== undefined) {
     return `${row.minutes_remaining} min remaining`;
   }
-  return row.error ? "Could not read status" : "No countdown observed";
+  return row.error ? "Could not read machine page" : "No countdown observed";
 }
 
 function render(data) {
@@ -22,8 +22,9 @@ function render(data) {
   grid.querySelectorAll(".machine-card").forEach((card) => {
     const id = Number(card.querySelector("h3").textContent.replace("Machine ", ""));
     const row = byMachine.get(id);
-    card.className = `machine-card ${row ? row.status : "pending"}`;
-    card.querySelector("strong").textContent = row ? row.status : "pending";
+    const status = row ? row.status : "pending";
+    card.className = `machine-card ${status}`;
+    card.querySelector("strong").textContent = status.replaceAll("_", " ");
     card.querySelector("p").textContent = statusText(row);
   });
 

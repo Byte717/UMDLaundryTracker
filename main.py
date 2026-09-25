@@ -75,23 +75,20 @@ def get_machine_status(driver):
     if time_nodes and time_nodes[0].text.strip():
         return ("occupied", int(time_nodes[0].text.strip()))
 
-    free_nodes = driver.find_elements(
-        By.XPATH,
-        "//div[contains(@class,'machine-price__total__value') and normalize-space()='FREE']",
-    )
-    if free_nodes:
+    page_text = driver.execute_script("return document.body?.innerText || ''")
+    if "FREE" in page_text.upper():
         return ("available", None)
 
     done_nodes = driver.find_elements(
         By.XPATH,
-        "//div[contains(@class,'machine-state')]//h1[normalize-space()='Done']",
+        "//*[contains(@class,'machine-state')]//*[translate(normalize-space(), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')='DONE']",
     )
     if done_nodes:
         return ("available", None)
 
     ready_nodes = driver.find_elements(
         By.XPATH,
-        "//*[contains(normalize-space(), 'Available') or contains(normalize-space(), 'Start') or normalize-space()='FREE']",
+        "//*[contains(translate(normalize-space(), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'AVAILABLE') or contains(translate(normalize-space(), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'START')]",
     )
     if ready_nodes:
         return ("available", None)
@@ -109,7 +106,7 @@ def read_machine(driver, machine_id: int, url: str) -> MachineReading:
         )
         return MachineReading(machine_id, status, minutes, observed_at)
     except (TimeoutException, WebDriverException, ValueError) as exc:
-        return MachineReading(machine_id, "unknown", None, observed_at, str(exc)[:500])
+        return MachineReading(machine_id, "out_of_order", None, observed_at, str(exc)[:500])
 
 
 def save_readings(readings: list[MachineReading]) -> None:
@@ -133,7 +130,10 @@ def read_observations() -> list[dict]:
                 if not line:
                     continue
                 try:
-                    records.append(json.loads(line))
+                    record = json.loads(line)
+                    if record.get("status") == "unknown":
+                        record["status"] = "out_of_order"
+                    records.append(record)
                 except json.JSONDecodeError:
                     continue
     return records
@@ -175,7 +175,7 @@ def observation_history(limit: int = 500) -> list[dict]:
 def machine_summary() -> dict:
     latest = latest_observations()
     occupied = [row for row in latest if row["status"] == "occupied"]
-    errors = [row for row in latest if row["status"] == "unknown"]
+    errors = [row for row in latest if row["status"] == "out_of_order"]
     return {
         "machine_count": len(machines),
         "latest_count": len(latest),

@@ -41,7 +41,7 @@
         </article>
         <article>
           <span id="error-count">{{ summary.error_count }}</span>
-          <p>Check errors</p>
+          <p>Out of order</p>
         </article>
       </section>
 
@@ -57,7 +57,7 @@
               <div class="machine-card-header">
                 <h3>Machine {{ machine_id }}</h3>
                 {% if row %}
-                  <strong>{{ row.status }}</strong>
+                  <strong>{{ row.status | replace("_", " ") }}</strong>
                 {% else %}
                   <strong>pending</strong>
                 {% endif %}
