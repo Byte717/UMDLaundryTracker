@@ -7,6 +7,12 @@ services:
     startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1
     envVars:
       - key: POLL_INTERVAL_SECONDS
-        value: "60"
+        value: "30"
+      - key: POLL_BATCH_SIZE
+        value: "2"
+      - key: SELENIUM_TIMEOUT_SECONDS
+        value: "12"
+      - key: MAX_OBSERVATIONS_IN_MEMORY
+        value: "1000"
       - key: PYTHON_VERSION
         value: "3.12.6"

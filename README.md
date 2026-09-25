@@ -19,7 +19,10 @@ Create a new Render Blueprint from this folder. `render.yaml` installs Python de
 
 Useful environment variables:
 
-- `POLL_INTERVAL_SECONDS`: polling cadence, default `60`
+- `POLL_INTERVAL_SECONDS`: polling cadence, default `60`; Render uses `30`
+- `POLL_BATCH_SIZE`: number of machines checked per poll, default `2`
+- `SELENIUM_TIMEOUT_SECONDS`: Selenium wait timeout, default `12`
+- `MAX_OBSERVATIONS_IN_MEMORY`: recent JSONL rows loaded into memory, default `1000`
 - `OBSERVATIONS_PATH`: JSONL storage path, default `laundrytrack-observations.jsonl`
 - `CHROME_BINARY`: optional path to Chrome/Chromium if auto-detection fails
 - `DISABLE_POLLER=1`: disables background polling for tests/debugging

@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import threading
+from collections import deque
 from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,8 +25,12 @@ OBSERVATIONS_PATH = Path(
     os.environ.get("OBSERVATIONS_PATH", str(BASE_DIR / "laundrytrack-observations.jsonl"))
 )
 POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
-SELENIUM_TIMEOUT_SECONDS = int(os.environ.get("SELENIUM_TIMEOUT_SECONDS", "20"))
+SELENIUM_TIMEOUT_SECONDS = int(os.environ.get("SELENIUM_TIMEOUT_SECONDS", "12"))
+MAX_OBSERVATIONS_IN_MEMORY = int(os.environ.get("MAX_OBSERVATIONS_IN_MEMORY", "1000"))
+POLL_BATCH_SIZE = int(os.environ.get("POLL_BATCH_SIZE", "2"))
 storage_lock = threading.Lock()
+poll_lock = threading.Lock()
+poll_cursor = 0
 
 
 @dataclass(frozen=True)
@@ -48,6 +53,7 @@ def init_storage() -> None:
 
 def create_driver() -> webdriver.Chrome:
     options = Options()
+    options.page_load_strategy = "eager"
     chromium_path = (
         os.environ.get("CHROME_BINARY")
         or shutil.which("chromium")
@@ -59,7 +65,29 @@ def create_driver() -> webdriver.Chrome:
     options.add_argument("--headless=new")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
-    options.add_argument("--window-size=1280,900")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-features=BackForwardCache,Translate")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-site-isolation-trials")
+    options.add_argument("--disable-sync")
+    options.add_argument("--hide-scrollbars")
+    options.add_argument("--js-flags=--max-old-space-size=64")
+    options.add_argument("--mute-audio")
+    options.add_argument("--no-first-run")
+    options.add_argument("--renderer-process-limit=1")
+    options.add_argument("--window-size=420,720")
+    options.add_argument("--blink-settings=imagesEnabled=false")
+    options.add_experimental_option(
+        "prefs",
+        {
+            "profile.managed_default_content_settings.images": 2,
+            "profile.managed_default_content_settings.fonts": 2,
+            "profile.managed_default_content_settings.geolocation": 2,
+            "profile.managed_default_content_settings.media_stream": 2,
+        },
+    )
     return webdriver.Chrome(options=options)
 
 
@@ -76,7 +104,11 @@ def get_machine_status(driver):
         return ("occupied", int(time_nodes[0].text.strip()))
 
     page_text = driver.execute_script("return document.body?.innerText || ''")
-    if "FREE" in page_text.upper():
+    page_text_upper = page_text.upper()
+    if "MACHINE OFFLINE" in page_text_upper or "CURRENTLY OFFLINE" in page_text_upper:
+        return ("out_of_order", None)
+
+    if "FREE" in page_text_upper:
         return ("available", None)
 
     done_nodes = driver.find_elements(
@@ -122,32 +154,77 @@ def read_observations() -> list[dict]:
     if not OBSERVATIONS_PATH.exists():
         return []
 
-    records = []
+    lines = deque(maxlen=MAX_OBSERVATIONS_IN_MEMORY)
     with storage_lock:
         with OBSERVATIONS_PATH.open("r", encoding="utf-8") as handle:
             for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                    if record.get("status") == "unknown":
-                        record["status"] = "out_of_order"
-                    records.append(record)
-                except json.JSONDecodeError:
-                    continue
+                lines.append(line)
+
+    records = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+            if record.get("status") == "unknown":
+                record["status"] = "out_of_order"
+            records.append(record)
+        except json.JSONDecodeError:
+            continue
     return records
 
 
-def poll_once() -> list[MachineReading]:
+def failed_poll_readings(error: Exception) -> list[MachineReading]:
+    observed_at = utc_now()
+    message = str(error)[:500]
+    return [
+        MachineReading(machine_id, "out_of_order", None, observed_at, message)
+        for machine_id in sorted(machines)
+    ]
+
+
+def poll_machine(machine_id: int, url: str) -> MachineReading:
     driver = create_driver()
     try:
-        readings = [
-            read_machine(driver, machine_id, url)
-            for machine_id, url in sorted(machines.items())
-        ]
+        return read_machine(driver, machine_id, url)
     finally:
         driver.quit()
+
+
+def poll_once() -> list[MachineReading]:
+    global poll_cursor
+
+    if not poll_lock.acquire(blocking=False):
+        return []
+
+    readings = []
+    try:
+        machine_items = sorted(machines.items())
+        batch_size = max(1, min(POLL_BATCH_SIZE, len(machine_items)))
+        batch = [
+            machine_items[(poll_cursor + offset) % len(machine_items)]
+            for offset in range(batch_size)
+        ]
+        poll_cursor = (poll_cursor + batch_size) % len(machine_items)
+
+        for machine_id, url in batch:
+            try:
+                readings.append(poll_machine(machine_id, url))
+            except Exception as exc:
+                readings.append(
+                    MachineReading(
+                        machine_id,
+                        "out_of_order",
+                        None,
+                        utc_now(),
+                        str(exc)[:500],
+                    )
+                )
+    except Exception as exc:
+        readings = failed_poll_readings(exc)
+    finally:
+        poll_lock.release()
 
     save_readings(readings)
     return readings
