@@ -1,10 +1,9 @@
 import atexit
+import json
 import os
 import shutil
-import sqlite3
 import threading
-import time
-from contextlib import contextmanager
+from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,9 +20,12 @@ from links import machines
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATABASE_URL = os.environ.get("DATABASE_PATH", str(BASE_DIR / "laundrytrack.sqlite3"))
-POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "300"))
+OBSERVATIONS_PATH = Path(
+    os.environ.get("OBSERVATIONS_PATH", str(BASE_DIR / "laundrytrack-observations.jsonl"))
+)
+POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
 SELENIUM_TIMEOUT_SECONDS = int(os.environ.get("SELENIUM_TIMEOUT_SECONDS", "20"))
+storage_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -39,38 +41,9 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-@contextmanager
-def connect_db():
-    conn = sqlite3.connect(DATABASE_URL)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def init_db() -> None:
-    with connect_db() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS observations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                machine_id INTEGER NOT NULL,
-                url TEXT NOT NULL,
-                status TEXT NOT NULL,
-                minutes_remaining INTEGER,
-                observed_at TEXT NOT NULL,
-                error TEXT
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_observations_machine_time
-            ON observations(machine_id, observed_at DESC)
-            """
-        )
+def init_storage() -> None:
+    OBSERVATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    OBSERVATIONS_PATH.touch(exist_ok=True)
 
 
 def create_driver() -> webdriver.Chrome:
@@ -133,25 +106,30 @@ def read_machine(driver, machine_id: int, url: str) -> MachineReading:
 
 
 def save_readings(readings: list[MachineReading]) -> None:
-    with connect_db() as conn:
-        conn.executemany(
-            """
-            INSERT INTO observations (
-                machine_id, url, status, minutes_remaining, observed_at, error
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    reading.machine_id,
-                    machines[reading.machine_id],
-                    reading.status,
-                    reading.minutes_remaining,
-                    reading.observed_at,
-                    reading.error,
-                )
-                for reading in readings
-            ],
-        )
+    with storage_lock:
+        with OBSERVATIONS_PATH.open("a", encoding="utf-8") as handle:
+            for reading in readings:
+                record = asdict(reading)
+                record["url"] = machines[reading.machine_id]
+                handle.write(json.dumps(record, separators=(",", ":")) + "\n")
+
+
+def read_observations() -> list[dict]:
+    if not OBSERVATIONS_PATH.exists():
+        return []
+
+    records = []
+    with storage_lock:
+        with OBSERVATIONS_PATH.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    return records
 
 
 def poll_once() -> list[MachineReading]:
@@ -169,38 +147,22 @@ def poll_once() -> list[MachineReading]:
 
 
 def latest_observations() -> list[dict]:
-    with connect_db() as conn:
-        rows = conn.execute(
-            """
-            SELECT o.*
-            FROM observations o
-            JOIN (
-                SELECT machine_id, MAX(observed_at) AS observed_at
-                FROM observations
-                GROUP BY machine_id
-            ) latest
-              ON latest.machine_id = o.machine_id
-             AND latest.observed_at = o.observed_at
-            ORDER BY o.machine_id
-            """
-        ).fetchall()
+    latest = {}
+    for row in read_observations():
+        current = latest.get(row["machine_id"])
+        if current is None or row["observed_at"] > current["observed_at"]:
+            latest[row["machine_id"]] = row
 
-    return [dict(row) for row in rows]
+    return [latest[machine_id] for machine_id in sorted(latest)]
 
 
 def observation_history(limit: int = 500) -> list[dict]:
-    with connect_db() as conn:
-        rows = conn.execute(
-            """
-            SELECT *
-            FROM observations
-            ORDER BY observed_at DESC, machine_id
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
-
-    return [dict(row) for row in rows]
+    rows = sorted(
+        read_observations(),
+        key=lambda row: (row["observed_at"], row["machine_id"]),
+        reverse=True,
+    )
+    return rows[:limit]
 
 
 def machine_summary() -> dict:
@@ -218,7 +180,7 @@ def machine_summary() -> dict:
 
 
 def create_app() -> Flask:
-    init_db()
+    init_storage()
     app = Flask(__name__)
 
     @app.get("/")

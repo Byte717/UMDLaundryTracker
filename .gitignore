@@ -3,3 +3,4 @@ __pycache__/
 .env
 .venv/
 laundrytrack.sqlite3
+laundrytrack-observations.jsonl

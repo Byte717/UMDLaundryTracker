@@ -7,6 +7,6 @@ services:
     startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1
     envVars:
       - key: POLL_INTERVAL_SECONDS
-        value: "300"
+        value: "60"
       - key: PYTHON_VERSION
         value: "3.12.6"

@@ -57,4 +57,4 @@ async function runPoll() {
 }
 
 refresh.addEventListener("click", runPoll);
-setInterval(loadStatus, 30000);
+setInterval(loadStatus, 15000);
