@@ -31,7 +31,6 @@
     <main class="shell">
       <section class="page-intro">
         <h1>Leonardtown dryers</h1>
-        <p class="polling-note">Updates every {{ poll_interval }} seconds</p>
       </section>
 
       <section class="metrics" aria-label="Laundry summary">
@@ -59,10 +58,7 @@
 
       <section class="workspace-panel" aria-labelledby="machines-heading">
         <div class="panel-heading">
-          <div>
-            <p class="section-kicker">Live view</p>
-            <h2 id="machines-heading">Machine availability</h2>
-          </div>
+          <h2 id="machines-heading">Machine availability</h2>
           <div class="status-legend" aria-label="Machine status legend">
             <span><i class="status-swatch available" aria-hidden="true"></i>Available</span>
             <span><i class="status-swatch occupied" aria-hidden="true"></i>Occupied</span>
@@ -114,7 +110,7 @@
             <article>
               <time data-timestamp="{{ row.observed_at }}">{{ row.observed_at }}</time>
               <span>Machine <b>{{ row.machine_id }}</b> was occupied</span>
-              <strong>{{ row.minutes_remaining }} min left</strong>
+              <strong class="history-remaining" data-observed-at="{{ row.observed_at }}" data-minutes="{{ row.minutes_remaining }}">{{ row.minutes_remaining }} min left</strong>
             </article>
           {% else %}
             <p class="empty">No occupied readings saved yet.</p>

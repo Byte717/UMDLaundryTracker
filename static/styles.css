@@ -159,17 +159,6 @@ h1 {
   letter-spacing: 0;
 }
 
-.polling-note {
-  flex: 0 0 auto;
-  padding: 8px 10px;
-  border: 1px solid #d6e9ed;
-  border-radius: 5px;
-  color: #126b77;
-  background: #edf9fa;
-  font-size: 13px;
-  font-weight: 730;
-}
-
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -402,6 +391,7 @@ h2 { font-size: 21px; line-height: 1.2; }
 .timeline time { color: var(--faint); font-variant-numeric: tabular-nums; }
 .timeline b { color: var(--ink); }
 .timeline strong { background: var(--navy-2); }
+.timeline strong.complete { background: var(--green); }
 .empty { padding: 18px 0; color: var(--muted); font-size: 14px; }
 
 .usage-dialog {
@@ -543,7 +533,6 @@ h2 { font-size: 21px; line-height: 1.2; }
   .brand-name { font-size: 14px; }
   .shell { padding-top: 28px; }
   .page-intro { margin-bottom: 21px; }
-  .polling-note { font-size: 12px; }
   .metrics { gap: 10px; }
   .metric-card { min-height: 118px; padding: 15px; }
   .metric-card span { font-size: 30px; }

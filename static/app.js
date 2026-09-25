@@ -50,6 +50,21 @@ function formatSavedTimestamps() {
   });
 }
 
+function updateHistoryCountdowns() {
+  document.querySelectorAll(".history-remaining").forEach((element) => {
+    const observedAt = new Date(element.dataset.observedAt).getTime();
+    const reportedMinutes = Number(element.dataset.minutes);
+    if (!Number.isFinite(observedAt) || !Number.isFinite(reportedMinutes)) {
+      element.textContent = "No estimate";
+      return;
+    }
+    const endAt = observedAt + reportedMinutes * 60000;
+    const remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 60000));
+    element.textContent = remaining > 0 ? `${remaining} min left` : "Complete";
+    element.classList.toggle("complete", remaining === 0);
+  });
+}
+
 function render(data) {
   document.querySelector("#occupied-count").textContent = data.summary.occupied_count;
   document.querySelector("#available-count").textContent = data.summary.available_count;
@@ -82,10 +97,11 @@ function render(data) {
         <article>
           <time>${new Date(row.observed_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</time>
           <span>Machine <b>${row.machine_id}</b> was occupied</span>
-          <strong>${row.minutes_remaining} min left</strong>
+          <strong class="history-remaining" data-observed-at="${row.observed_at}" data-minutes="${row.minutes_remaining}">${row.minutes_remaining} min left</strong>
         </article>
       `).join("")
     : '<p class="empty">No occupied readings saved yet.</p>';
+  updateHistoryCountdowns();
 }
 
 function formatUsageDuration(minutes) {
@@ -179,5 +195,7 @@ refresh.addEventListener("click", runPoll);
 
 updateLastChecked();
 formatSavedTimestamps();
+updateHistoryCountdowns();
 setInterval(updateLastChecked, 30000);
+setInterval(updateHistoryCountdowns, 15000);
 setInterval(loadStatus, 15000);
