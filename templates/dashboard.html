@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LaundryTrack</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">LaundryTrack</p>
+          <h1>Machine downtime and occupancy</h1>
+        </div>
+        <button id="refresh" type="button" aria-label="Refresh status">Refresh</button>
+      </section>
+
+      <section class="metrics" aria-label="Laundry summary">
+        <article>
+          <span>{{ summary.machine_count }}</span>
+          <p>Tracked machines</p>
+        </article>
+        <article>
+          <span id="occupied-count">{{ summary.occupied_count }}</span>
+          <p>Occupied now</p>
+        </article>
+        <article>
+          <span id="available-count">{{ summary.available_count }}</span>
+          <p>Not occupied</p>
+        </article>
+        <article>
+          <span id="error-count">{{ summary.error_count }}</span>
+          <p>Check errors</p>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Current machines</h2>
+          <p id="last-seen">
+            {% if summary.last_observed_at %}
+              Last checked {{ summary.last_observed_at }}
+            {% else %}
+              Waiting for first check
+            {% endif %}
+          </p>
+        </div>
+        <div class="machine-grid" id="machine-grid">
+          {% for machine_id, url in machines.items() %}
+            {% set row = latest | selectattr("machine_id", "equalto", machine_id) | list | first %}
+            <article class="machine-card {{ row.status if row else 'pending' }}">
+              <div>
+                <h3>Machine {{ machine_id }}</h3>
+                <a href="{{ url }}" target="_blank" rel="noreferrer">Open CSC link</a>
+              </div>
+              {% if row %}
+                <strong>{{ row.status }}</strong>
+                <p>
+                  {% if row.minutes_remaining is not none %}
+                    {{ row.minutes_remaining }} min remaining
+                  {% else %}
+                    No countdown observed
+                  {% endif %}
+                </p>
+              {% else %}
+                <strong>pending</strong>
+                <p>No checks recorded yet</p>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Observed occupied times</h2>
+          <p>Polls run every {{ poll_interval // 60 }} min.</p>
+        </div>
+        <div class="timeline" id="timeline">
+          {% for row in history if row.status == "occupied" %}
+            <article>
+              <time>{{ row.observed_at }}</time>
+              <span>Machine {{ row.machine_id }}</span>
+              <strong>{{ row.minutes_remaining }} min left</strong>
+            </article>
+          {% else %}
+            <p class="empty">No occupied readings saved yet.</p>
+          {% endfor %}
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
