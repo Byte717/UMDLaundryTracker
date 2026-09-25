@@ -7,14 +7,14 @@
     <link rel="stylesheet" href="/static/styles.css">
   </head>
   <body>
-    <main class="shell">
-      <section class="topbar panel">
-        <div>
-          <p class="eyebrow">LaundryTrack</p>
-          <h1>Laundry room status</h1>
-          <p class="subtitle">Live occupancy tracking for the CSC machine links.</p>
-        </div>
-        <div class="topbar-actions">
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="/" aria-label="LaundryTrack home">
+          <span class="brand-mark" aria-hidden="true">LT</span>
+          <span>LaundryTrack</span>
+        </a>
+        <div class="header-status">
+          <span class="live-dot" aria-hidden="true"></span>
           <p id="last-seen">
             {% if summary.last_observed_at %}
               Last checked {{ summary.last_observed_at }}
@@ -22,76 +22,102 @@
               Waiting for first check
             {% endif %}
           </p>
-          <button id="refresh" type="button" aria-label="Refresh status">Refresh</button>
+          <button id="refresh" type="button" aria-label="Refresh machine status">Refresh now</button>
         </div>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="page-intro">
+        <div>
+          <p class="eyebrow">University of Maryland · College Park</p>
+          <h1>Laundry room status</h1>
+          <p class="subtitle">See what is ready now and when occupied machines should finish.</p>
+        </div>
+        <p class="polling-note">Updates every {{ poll_interval }} seconds</p>
       </section>
 
       <section class="metrics" aria-label="Laundry summary">
-        <article>
-          <span>{{ summary.machine_count }}</span>
+        <article class="metric-card machines">
           <p>Tracked machines</p>
+          <span>{{ summary.machine_count }}</span>
+          <small>CSC Go links monitored</small>
         </article>
-        <article>
-          <span id="occupied-count">{{ summary.occupied_count }}</span>
+        <article class="metric-card occupied-metric">
           <p>Busy now</p>
+          <span id="occupied-count">{{ summary.occupied_count }}</span>
+          <small>Currently in a cycle</small>
         </article>
-        <article>
+        <article class="metric-card available-metric">
+          <p>Available</p>
           <span id="available-count">{{ summary.available_count }}</span>
-          <p>Open or done</p>
+          <small>Free or cycle complete</small>
         </article>
-        <article>
-          <span id="error-count">{{ summary.error_count }}</span>
+        <article class="metric-card issue-metric">
           <p>Out of order</p>
+          <span id="error-count">{{ summary.error_count }}</span>
+          <small>CSC reports unavailable</small>
         </article>
       </section>
 
-      <section class="panel">
+      <section class="workspace-panel" aria-labelledby="machines-heading">
         <div class="panel-heading">
-          <h2>Current machines</h2>
-          <p>Polled every {{ poll_interval }} seconds.</p>
+          <div>
+            <p class="section-kicker">Live view</p>
+            <h2 id="machines-heading">Machine availability</h2>
+          </div>
+          <div class="status-legend" aria-label="Machine status legend">
+            <span><i class="status-swatch available" aria-hidden="true"></i>Available</span>
+            <span><i class="status-swatch occupied" aria-hidden="true"></i>Occupied</span>
+            <span><i class="status-swatch out-of-order" aria-hidden="true"></i>Out of order</span>
+          </div>
         </div>
         <div class="machine-grid" id="machine-grid">
           {% for machine_id, url in machines.items() %}
             {% set row = latest | selectattr("machine_id", "equalto", machine_id) | list | first %}
             <article class="machine-card {{ row.status if row else 'pending' }}">
               <div class="machine-card-header">
-                <h3>Machine {{ machine_id }}</h3>
+                <div>
+                  <p class="machine-label">Machine</p>
+                  <h3>{{ machine_id }}</h3>
+                </div>
                 {% if row %}
                   <strong>{{ row.status | replace("_", " ") }}</strong>
                 {% else %}
                   <strong>pending</strong>
                 {% endif %}
               </div>
-              {% if row %}
-                <p>
-                  {% if row.minutes_remaining is not none %}
-                    {{ row.minutes_remaining }} min remaining
-                    {% if row.predicted %}
-                      estimated
-                    {% endif %}
-                  {% else %}
-                    No countdown observed
-                  {% endif %}
-                </p>
-              {% else %}
-                <p>No checks recorded yet</p>
-              {% endif %}
-              <a href="{{ url }}" target="_blank" rel="noreferrer">Open CSC link</a>
+              <div class="machine-reading">
+                {% if row and row.minutes_remaining is not none %}
+                  <p class="machine-time">{{ row.minutes_remaining }}<span>min</span></p>
+                  <p class="machine-detail">remaining{% if row.predicted %} · estimated{% endif %}</p>
+                {% elif row %}
+                  <p class="machine-time no-time">—</p>
+                  <p class="machine-detail">No countdown observed</p>
+                {% else %}
+                  <p class="machine-time no-time">—</p>
+                  <p class="machine-detail">Waiting for first check</p>
+                {% endif %}
+              </div>
+              <a href="{{ url }}" target="_blank" rel="noreferrer">Open CSC link <span aria-hidden="true">→</span></a>
             </article>
           {% endfor %}
         </div>
       </section>
 
-      <section class="panel">
+      <section class="workspace-panel history-panel" aria-labelledby="history-heading">
         <div class="panel-heading">
-          <h2>Observed occupied times</h2>
-          <p>Polls run every {{ poll_interval // 60 }} min.</p>
+          <div>
+            <p class="section-kicker">Activity log</p>
+            <h2 id="history-heading">Observed occupied times</h2>
+          </div>
+          <p class="history-caption">Saved readings from each completed check</p>
         </div>
         <div class="timeline" id="timeline">
           {% for row in history if row.status == "occupied" %}
             <article>
               <time>{{ row.observed_at }}</time>
-              <span>Machine {{ row.machine_id }} was occupied</span>
+              <span>Machine <b>{{ row.machine_id }}</b> was occupied</span>
               <strong>{{ row.minutes_remaining }} min left</strong>
             </article>
           {% else %}

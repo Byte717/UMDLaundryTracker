@@ -5,7 +5,7 @@ const refresh = document.querySelector("#refresh");
 function statusText(row) {
   if (!row) return "No checks recorded yet";
   if (row.minutes_remaining !== null && row.minutes_remaining !== undefined) {
-    return `${row.minutes_remaining} min remaining${row.predicted ? " estimated" : ""}`;
+    return `remaining${row.predicted ? " · estimated" : ""}`;
   }
   return row.error ? "Could not read machine page" : "No countdown observed";
 }
@@ -25,7 +25,16 @@ function render(data) {
     const status = row ? row.status : "pending";
     card.className = `machine-card ${status}`;
     card.querySelector("strong").textContent = status.replaceAll("_", " ");
-    card.querySelector("p").textContent = statusText(row);
+    const time = card.querySelector(".machine-time");
+    const detail = card.querySelector(".machine-detail");
+    if (row && row.minutes_remaining !== null && row.minutes_remaining !== undefined) {
+      time.className = "machine-time";
+      time.innerHTML = `${row.minutes_remaining}<span>min</span>`;
+    } else {
+      time.className = "machine-time no-time";
+      time.textContent = "—";
+    }
+    detail.textContent = statusText(row);
   });
 
   const occupiedRows = data.history.filter((row) => row.status === "occupied");
@@ -33,7 +42,7 @@ function render(data) {
     ? occupiedRows.map((row) => `
         <article>
           <time>${row.observed_at}</time>
-          <span>Machine ${row.machine_id}</span>
+          <span>Machine <b>${row.machine_id}</b> was occupied</span>
           <strong>${row.minutes_remaining} min left</strong>
         </article>
       `).join("")
