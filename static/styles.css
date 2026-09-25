@@ -273,7 +273,7 @@ h2 { font-size: 21px; line-height: 1.2; }
 
 .machine-card {
   position: relative;
-  min-height: 218px;
+  min-height: 184px;
   display: flex;
   flex-direction: column;
   padding: 17px;
@@ -365,17 +365,6 @@ h2 { font-size: 21px; line-height: 1.2; }
   font-size: 13px;
 }
 
-.machine-card a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #edf0f4;
-  font-size: 13px;
-}
-
-.machine-card a span { font-size: 17px; line-height: 1; }
 .machine-card.occupied::before { background: var(--red); }
 .machine-card.occupied strong { background: var(--red); }
 .machine-card.occupied .machine-time { color: var(--red); }
@@ -431,7 +420,7 @@ h2 { font-size: 21px; line-height: 1.2; }
   .metric-card small { display: none; }
   .workspace-panel { margin-top: 16px; padding: 16px; }
   .machine-grid { grid-template-columns: 1fr; }
-  .machine-card { min-height: 194px; }
+  .machine-card { min-height: 174px; }
   .timeline article { grid-template-columns: 1fr; gap: 7px; padding: 13px 0; }
   .history-caption { display: none; }
 }

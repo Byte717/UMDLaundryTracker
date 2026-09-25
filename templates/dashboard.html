@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>LaundryTrack</title>
+    <title>UMD LaundryTrack</title>
     <link rel="stylesheet" href="/static/styles.css">
   </head>
   <body>
     <header class="site-header">
       <div class="header-inner">
-        <a class="brand" href="/" aria-label="LaundryTrack home">
+        <a class="brand" href="/" aria-label="UMD LaundryTrack home">
           <span class="brand-mark" aria-hidden="true">LT</span>
-          <span>LaundryTrack</span>
+          <span>UMD LaundryTrack</span>
         </a>
         <div class="header-status">
           <span class="live-dot" aria-hidden="true"></span>
@@ -31,7 +31,7 @@
       <section class="page-intro">
         <div>
           <p class="eyebrow">University of Maryland · College Park</p>
-          <h1>Laundry room status</h1>
+          <h1>Leonardtown dryers</h1>
           <p class="subtitle">See what is ready now and when occupied machines should finish.</p>
         </div>
         <p class="polling-note">Updates every {{ poll_interval }} seconds</p>
@@ -41,7 +41,7 @@
         <article class="metric-card machines">
           <p>Tracked machines</p>
           <span>{{ summary.machine_count }}</span>
-          <small>CSC Go links monitored</small>
+          <small>Dryers monitored</small>
         </article>
         <article class="metric-card occupied-metric">
           <p>Busy now</p>
@@ -56,7 +56,7 @@
         <article class="metric-card issue-metric">
           <p>Out of order</p>
           <span id="error-count">{{ summary.error_count }}</span>
-          <small>CSC reports unavailable</small>
+          <small>Reported offline</small>
         </article>
       </section>
 
@@ -73,7 +73,7 @@
           </div>
         </div>
         <div class="machine-grid" id="machine-grid">
-          {% for machine_id, url in machines.items() %}
+          {% for machine_id in machines %}
             {% set row = latest | selectattr("machine_id", "equalto", machine_id) | list | first %}
             <article class="machine-card {{ row.status if row else 'pending' }}">
               <div class="machine-card-header">
@@ -99,7 +99,6 @@
                   <p class="machine-detail">Waiting for first check</p>
                 {% endif %}
               </div>
-              <a href="{{ url }}" target="_blank" rel="noreferrer">Open CSC link <span aria-hidden="true">→</span></a>
             </article>
           {% endfor %}
         </div>
