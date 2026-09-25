@@ -5,7 +5,6 @@ A small Render-ready Flask app that polls CSC GO machine links, stores observed 
 ## Local run
 
 ```bash
-source /Users/Shared/Code/Globals/globalEnv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
