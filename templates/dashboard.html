@@ -66,6 +66,9 @@
                 <p>
                   {% if row.minutes_remaining is not none %}
                     {{ row.minutes_remaining }} min remaining
+                    {% if row.predicted %}
+                      estimated
+                    {% endif %}
                   {% else %}
                     No countdown observed
                   {% endif %}

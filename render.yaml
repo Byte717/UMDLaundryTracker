@@ -9,7 +9,9 @@ services:
       - key: POLL_INTERVAL_SECONDS
         value: "30"
       - key: POLL_BATCH_SIZE
-        value: "2"
+        value: "1"
+      - key: OCCUPIED_RECHECK_GRACE_SECONDS
+        value: "120"
       - key: SELENIUM_TIMEOUT_SECONDS
         value: "12"
       - key: MAX_OBSERVATIONS_IN_MEMORY

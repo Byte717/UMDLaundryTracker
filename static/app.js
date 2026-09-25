@@ -5,7 +5,7 @@ const refresh = document.querySelector("#refresh");
 function statusText(row) {
   if (!row) return "No checks recorded yet";
   if (row.minutes_remaining !== null && row.minutes_remaining !== undefined) {
-    return `${row.minutes_remaining} min remaining`;
+    return `${row.minutes_remaining} min remaining${row.predicted ? " estimated" : ""}`;
   }
   return row.error ? "Could not read machine page" : "No countdown observed";
 }

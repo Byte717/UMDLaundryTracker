@@ -6,7 +6,7 @@ import threading
 from collections import deque
 from dataclasses import asdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -28,6 +28,9 @@ POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
 SELENIUM_TIMEOUT_SECONDS = int(os.environ.get("SELENIUM_TIMEOUT_SECONDS", "12"))
 MAX_OBSERVATIONS_IN_MEMORY = int(os.environ.get("MAX_OBSERVATIONS_IN_MEMORY", "1000"))
 POLL_BATCH_SIZE = int(os.environ.get("POLL_BATCH_SIZE", "2"))
+OCCUPIED_RECHECK_GRACE_SECONDS = int(
+    os.environ.get("OCCUPIED_RECHECK_GRACE_SECONDS", "120")
+)
 storage_lock = threading.Lock()
 poll_lock = threading.Lock()
 poll_cursor = 0
@@ -44,6 +47,10 @@ class MachineReading:
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def parse_observed_at(value: str) -> datetime:
+    return datetime.fromisoformat(value).astimezone(timezone.utc)
 
 
 def init_storage() -> None:
@@ -202,13 +209,27 @@ def poll_once() -> list[MachineReading]:
     try:
         machine_items = sorted(machines.items())
         batch_size = max(1, min(POLL_BATCH_SIZE, len(machine_items)))
-        batch = [
-            machine_items[(poll_cursor + offset) % len(machine_items)]
-            for offset in range(batch_size)
-        ]
-        poll_cursor = (poll_cursor + batch_size) % len(machine_items)
+        latest_by_id = {row["machine_id"]: row for row in latest_observations(adjust=False)}
+        now = datetime.now(timezone.utc)
+        due_items = []
 
-        for machine_id, url in batch:
+        for offset in range(len(machine_items)):
+            machine_id, url = machine_items[(poll_cursor + offset) % len(machine_items)]
+            row = latest_by_id.get(machine_id)
+            if should_poll_machine(row, now):
+                due_items.append((machine_id, url))
+            if len(due_items) >= batch_size:
+                break
+
+        if not due_items:
+            poll_cursor = (poll_cursor + 1) % len(machine_items)
+            return []
+
+        last_polled_id = due_items[-1][0]
+        last_index = [machine_id for machine_id, _ in machine_items].index(last_polled_id)
+        poll_cursor = (last_index + 1) % len(machine_items)
+
+        for machine_id, url in due_items:
             try:
                 readings.append(poll_machine(machine_id, url))
             except Exception as exc:
@@ -230,14 +251,56 @@ def poll_once() -> list[MachineReading]:
     return readings
 
 
-def latest_observations() -> list[dict]:
+def should_poll_machine(row: Optional[dict], now: datetime) -> bool:
+    if row is None:
+        return True
+
+    if row["status"] != "occupied":
+        return True
+
+    minutes_remaining = row.get("minutes_remaining")
+    if minutes_remaining is None:
+        return True
+
+    observed_at = parse_observed_at(row["observed_at"])
+    done_at = observed_at + timedelta(minutes=int(minutes_remaining))
+    recheck_at = done_at + timedelta(seconds=OCCUPIED_RECHECK_GRACE_SECONDS)
+    return now >= recheck_at
+
+
+def adjusted_observation(row: dict, now: Optional[datetime] = None) -> dict:
+    adjusted = dict(row)
+    if adjusted["status"] != "occupied" or adjusted.get("minutes_remaining") is None:
+        return adjusted
+
+    now = now or datetime.now(timezone.utc)
+    observed_at = parse_observed_at(adjusted["observed_at"])
+    elapsed_seconds = max(0, (now - observed_at).total_seconds())
+    remaining_seconds = int(adjusted["minutes_remaining"]) * 60 - elapsed_seconds
+
+    if remaining_seconds <= 0:
+        adjusted["status"] = "available"
+        adjusted["minutes_remaining"] = None
+        adjusted["predicted"] = True
+        return adjusted
+
+    adjusted["minutes_remaining"] = max(1, int((remaining_seconds + 59) // 60))
+    adjusted["predicted"] = True
+    return adjusted
+
+
+def latest_observations(adjust: bool = True) -> list[dict]:
     latest = {}
     for row in read_observations():
         current = latest.get(row["machine_id"])
         if current is None or row["observed_at"] > current["observed_at"]:
             latest[row["machine_id"]] = row
 
-    return [latest[machine_id] for machine_id in sorted(latest)]
+    rows = [latest[machine_id] for machine_id in sorted(latest)]
+    if adjust:
+        now = datetime.now(timezone.utc)
+        return [adjusted_observation(row, now) for row in rows]
+    return rows
 
 
 def observation_history(limit: int = 500) -> list[dict]:
