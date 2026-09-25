@@ -11,20 +11,19 @@
     <header class="site-header">
       <div class="header-inner">
         <a class="brand" href="/" aria-label="UMD LaundryTrack home">
-          <img src="/static/umd-wordmark-light.png" alt="University of Maryland">
-          <span class="brand-divider" aria-hidden="true"></span>
-          <span class="brand-name">LaundryTrack</span>
+          <img src="/static/umd-mark.png" alt="">
+          <span class="brand-name">UMD LaundryTrack</span>
         </a>
         <div class="header-status">
           <span class="live-dot" aria-hidden="true"></span>
-          <p id="last-seen">
+          <p id="last-seen"{% if summary.last_observed_at %} data-observed-at="{{ summary.last_observed_at }}"{% endif %}>
             {% if summary.last_observed_at %}
-              Last checked {{ summary.last_observed_at }}
+              Checked recently
             {% else %}
-              Waiting for first check
+              Awaiting first check
             {% endif %}
           </p>
-          <button id="refresh" type="button" aria-label="Refresh machine status">Refresh now</button>
+          <button id="refresh" type="button" aria-label="Refresh machine status"><span aria-hidden="true">↻</span> Refresh</button>
         </div>
       </div>
     </header>
@@ -73,7 +72,7 @@
         <div class="machine-grid" id="machine-grid">
           {% for machine_id in machines %}
             {% set row = latest | selectattr("machine_id", "equalto", machine_id) | list | first %}
-            <article class="machine-card {{ row.status if row else 'pending' }}">
+            <article class="machine-card {{ row.status if row else 'pending' }}" data-machine-id="{{ machine_id }}" role="button" tabindex="0" aria-label="View weekly usage for machine {{ machine_id }}">
               <div class="machine-card-header">
                 <div>
                   <p class="machine-label">Machine</p>
@@ -113,7 +112,7 @@
         <div class="timeline" id="timeline">
           {% for row in history if row.status == "occupied" %}
             <article>
-              <time>{{ row.observed_at }}</time>
+              <time data-timestamp="{{ row.observed_at }}">{{ row.observed_at }}</time>
               <span>Machine <b>{{ row.machine_id }}</b> was occupied</span>
               <strong>{{ row.minutes_remaining }} min left</strong>
             </article>
@@ -123,6 +122,20 @@
         </div>
       </section>
     </main>
+
+    <dialog class="usage-dialog" id="usage-dialog" aria-labelledby="usage-title">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Weekly usage</p>
+          <h2 id="usage-title">Machine history</h2>
+          <p id="usage-week"></p>
+        </div>
+        <button class="dialog-close" id="usage-close" type="button" title="Close" aria-label="Close usage history">×</button>
+      </div>
+      <div class="usage-summary" id="usage-summary"></div>
+      <div class="usage-chart" id="usage-chart" aria-live="polite"></div>
+      <p class="usage-footnote">Intervals are inferred from saved occupied readings and reported cycle time.</p>
+    </dialog>
     <script src="/static/app.js"></script>
   </body>
 </html>

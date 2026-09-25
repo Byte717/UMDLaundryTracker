@@ -9,8 +9,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, abort, jsonify, render_template
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.options import Options
@@ -31,6 +32,8 @@ POLL_BATCH_SIZE = int(os.environ.get("POLL_BATCH_SIZE", "2"))
 OCCUPIED_RECHECK_GRACE_SECONDS = int(
     os.environ.get("OCCUPIED_RECHECK_GRACE_SECONDS", "120")
 )
+DISPLAY_TIMEZONE_NAME = os.environ.get("DISPLAY_TIMEZONE", "America/New_York")
+DISPLAY_TIMEZONE = ZoneInfo(DISPLAY_TIMEZONE_NAME)
 storage_lock = threading.Lock()
 poll_lock = threading.Lock()
 poll_cursor = 0
@@ -312,6 +315,83 @@ def observation_history(limit: int = 500) -> list[dict]:
     return rows[:limit]
 
 
+def weekly_machine_usage(machine_id: int, now: Optional[datetime] = None) -> dict:
+    now = (now or datetime.now(timezone.utc)).astimezone(DISPLAY_TIMEZONE)
+    week_start = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    week_end = week_start + timedelta(days=7)
+    intervals = []
+
+    if OBSERVATIONS_PATH.exists():
+        with storage_lock:
+            with OBSERVATIONS_PATH.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    try:
+                        row = json.loads(line)
+                        if (
+                            row.get("machine_id") != machine_id
+                            or row.get("status") != "occupied"
+                            or row.get("minutes_remaining") is None
+                        ):
+                            continue
+                        start = parse_observed_at(row["observed_at"]).astimezone(
+                            DISPLAY_TIMEZONE
+                        )
+                        end = start + timedelta(minutes=int(row["minutes_remaining"]))
+                        if end > week_start and start < week_end:
+                            intervals.append((max(start, week_start), min(end, week_end)))
+                    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                        continue
+
+    merged = []
+    for start, end in sorted(intervals):
+        if merged and start <= merged[-1][1] + timedelta(minutes=5):
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+
+    days = []
+    total_minutes = 0
+    for day_offset in range(7):
+        day_start = week_start + timedelta(days=day_offset)
+        day_end = day_start + timedelta(days=1)
+        segments = []
+        for start, end in merged:
+            segment_start = max(start, day_start)
+            segment_end = min(end, day_end)
+            if segment_end <= segment_start:
+                continue
+            start_minute = round((segment_start - day_start).total_seconds() / 60)
+            end_minute = round((segment_end - day_start).total_seconds() / 60)
+            duration = max(1, end_minute - start_minute)
+            total_minutes += duration
+            segments.append(
+                {
+                    "start_minute": start_minute,
+                    "duration_minutes": duration,
+                    "start_label": segment_start.strftime("%-I:%M %p"),
+                    "end_label": segment_end.strftime("%-I:%M %p"),
+                    "estimated": segment_end > now,
+                }
+            )
+        days.append(
+            {
+                "label": day_start.strftime("%a"),
+                "date": f"{day_start.month}/{day_start.day}",
+                "segments": segments,
+            }
+        )
+
+    return {
+        "machine_id": machine_id,
+        "week_start": f"{week_start.month}/{week_start.day}",
+        "week_end": f"{(week_end - timedelta(days=1)).month}/{(week_end - timedelta(days=1)).day}",
+        "total_minutes": total_minutes,
+        "days": days,
+    }
+
+
 def machine_summary() -> dict:
     latest = latest_observations()
     occupied = [row for row in latest if row["status"] == "occupied"]
@@ -350,6 +430,12 @@ def create_app() -> Flask:
                 "history": observation_history(),
             }
         )
+
+    @app.get("/api/machines/<int:machine_id>/usage")
+    def api_machine_usage(machine_id: int):
+        if machine_id not in machines:
+            abort(404)
+        return jsonify(weekly_machine_usage(machine_id))
 
     @app.post("/api/poll")
     def api_poll():
