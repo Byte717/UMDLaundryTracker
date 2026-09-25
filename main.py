@@ -75,16 +75,23 @@ def get_machine_status(driver):
     if time_nodes and time_nodes[0].text.strip():
         return ("occupied", int(time_nodes[0].text.strip()))
 
+    free_nodes = driver.find_elements(
+        By.XPATH,
+        "//div[contains(@class,'machine-price__total__value') and normalize-space()='FREE']",
+    )
+    if free_nodes:
+        return ("available", None)
+
     done_nodes = driver.find_elements(
         By.XPATH,
         "//div[contains(@class,'machine-state')]//h1[normalize-space()='Done']",
     )
     if done_nodes:
-        return ("done", None)
+        return ("available", None)
 
     ready_nodes = driver.find_elements(
         By.XPATH,
-        "//div[contains(@class,'machine-state')]//*[contains(normalize-space(), 'Available') or contains(normalize-space(), 'Start')]",
+        "//*[contains(normalize-space(), 'Available') or contains(normalize-space(), 'Start') or normalize-space()='FREE']",
     )
     if ready_nodes:
         return ("available", None)

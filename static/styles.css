@@ -213,13 +213,11 @@ button:disabled {
   background: var(--red);
 }
 
-.machine-card.available,
-.machine-card.done {
+.machine-card.available {
   border-top-color: var(--green);
 }
 
-.machine-card.available strong,
-.machine-card.done strong {
+.machine-card.available strong {
   background: var(--green);
 }
 
