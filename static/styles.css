@@ -44,7 +44,8 @@ h1, h2, h3, p { margin: 0; }
 
 .site-header {
   color: #f8fbff;
-  background: var(--navy);
+  border-top: 5px solid #e21833;
+  background: #1c1c1c;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -55,7 +56,7 @@ h1, h2, h3, p { margin: 0; }
 }
 
 .header-inner {
-  min-height: 68px;
+  min-height: 72px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -65,26 +66,29 @@ h1, h2, h3, p { margin: 0; }
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   color: #ffffff;
-  font-size: 17px;
-  font-weight: 780;
+  font-size: 16px;
+  font-weight: 800;
   letter-spacing: 0;
 }
 
 .brand:hover { color: #ffffff; }
 
-.brand-mark {
-  display: grid;
-  width: 31px;
-  height: 31px;
-  place-items: center;
-  border-radius: 6px;
-  color: var(--navy);
-  background: #e7f6f8;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0;
+.brand img {
+  display: block;
+  width: 194px;
+  height: auto;
+}
+
+.brand-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.brand-name {
+  color: #ffffff;
 }
 
 .header-status {
@@ -134,7 +138,6 @@ button:disabled { cursor: wait; opacity: 0.7; }
   margin-bottom: 28px;
 }
 
-.eyebrow,
 .section-kicker {
   color: var(--teal);
   font-size: 11px;
@@ -143,20 +146,10 @@ button:disabled { cursor: wait; opacity: 0.7; }
   text-transform: uppercase;
 }
 
-.eyebrow { margin-bottom: 8px; }
-
 h1 {
   font-size: clamp(32px, 4vw, 46px);
   line-height: 1.05;
   letter-spacing: 0;
-}
-
-.subtitle {
-  max-width: 620px;
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1.5;
 }
 
 .polling-note {
@@ -411,6 +404,11 @@ h2 { font-size: 21px; line-height: 1.2; }
 }
 
 @media (max-width: 520px) {
+  .header-inner { min-height: 62px; }
+  .brand { gap: 9px; }
+  .brand img { width: 138px; }
+  .brand-divider { height: 22px; }
+  .brand-name { font-size: 14px; }
   .shell { padding-top: 28px; }
   .page-intro { margin-bottom: 21px; }
   .polling-note { font-size: 12px; }

@@ -4,14 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>UMD LaundryTrack</title>
+    <link rel="icon" href="/static/umd-mark.png" type="image/png">
     <link rel="stylesheet" href="/static/styles.css">
   </head>
   <body>
     <header class="site-header">
       <div class="header-inner">
         <a class="brand" href="/" aria-label="UMD LaundryTrack home">
-          <span class="brand-mark" aria-hidden="true">LT</span>
-          <span>UMD LaundryTrack</span>
+          <img src="/static/umd-wordmark-light.png" alt="University of Maryland">
+          <span class="brand-divider" aria-hidden="true"></span>
+          <span class="brand-name">LaundryTrack</span>
         </a>
         <div class="header-status">
           <span class="live-dot" aria-hidden="true"></span>
@@ -29,11 +31,7 @@
 
     <main class="shell">
       <section class="page-intro">
-        <div>
-          <p class="eyebrow">University of Maryland · College Park</p>
-          <h1>Leonardtown dryers</h1>
-          <p class="subtitle">See what is ready now and when occupied machines should finish.</p>
-        </div>
+        <h1>Leonardtown dryers</h1>
         <p class="polling-note">Updates every {{ poll_interval }} seconds</p>
       </section>
 
