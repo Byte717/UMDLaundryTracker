@@ -16,3 +16,7 @@ create index if not exists machine_observations_status_time_idx
   on public.machine_observations (status, observed_at desc);
 
 alter table public.machine_observations enable row level security;
+
+grant usage on schema public to service_role;
+grant select, insert on table public.machine_observations to service_role;
+grant usage, select on sequence public.machine_observations_id_seq to service_role;

@@ -51,4 +51,5 @@ SUPABASE_SECRET_KEY=sb_secret_...
 Before deploying with those variables, open Supabase's SQL Editor and run
 [`supabase-schema.sql`](supabase-schema.sql). The app keeps using the local
 JSONL file only when these variables are absent, which is useful for local
-development.
+development. The script enables Row Level Security and grants the server-only
+Supabase role access to the observations table.
