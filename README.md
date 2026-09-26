@@ -1,8 +1,8 @@
-# LaundryTrack
+# UMD LaundryTrack
 
-A small Render-ready Flask app that polls CSC GO machine links, stores observed machine states in a plain JSONL file, and shows when each machine was seen as occupied.
+A small Render-ready Flask app that polls CSC GO machine links, stores observed machine states, and shows when each machine was seen as occupied.
 
-On Render's normal web service filesystem, the JSONL file is useful for live tracking but may be lost on restart or redeploy. For permanent history without a database, use a persistent disk and point `OBSERVATIONS_PATH` at that disk.
+When Supabase is configured, readings persist across Render restarts and deploys. Without it, the app falls back to a local JSONL file for development.
 
 ## Local run
 
@@ -25,13 +25,30 @@ Useful environment variables:
 - `SELENIUM_TIMEOUT_SECONDS`: Selenium wait timeout, default `12`
 - `MAX_OBSERVATIONS_IN_MEMORY`: recent JSONL rows loaded into memory, default `1000`
 - `OBSERVATIONS_PATH`: JSONL storage path, default `laundrytrack-observations.jsonl`
+- `SUPABASE_URL`: Supabase project URL; enables persistent storage with `SUPABASE_SECRET_KEY`
+- `SUPABASE_SECRET_KEY`: server-only Supabase secret key; never commit this value
 - `CHROME_BINARY`: optional path to Chrome/Chromium if auto-detection fails
 - `DISABLE_POLLER=1`: disables background polling for tests/debugging
 
 ## Files
 
 - `links.py`: machine IDs and CSC GO URLs
-- `main.py`: Flask app, Selenium scraper, file persistence, and background poller
+- `main.py`: Flask app, Selenium scraper, persistence, and background poller
 - `templates/dashboard.html`: dashboard markup
 - `static/styles.css`: dashboard styling
 - `static/app.js`: refresh and live UI updates
+- `supabase-schema.sql`: one-time Supabase table setup
+
+## Persistent Supabase storage
+
+The app uses Supabase automatically when both of these Render environment variables are set:
+
+```text
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_...
+```
+
+Before deploying with those variables, open Supabase's SQL Editor and run
+[`supabase-schema.sql`](supabase-schema.sql). The app keeps using the local
+JSONL file only when these variables are absent, which is useful for local
+development.

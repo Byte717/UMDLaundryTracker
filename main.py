@@ -8,7 +8,10 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
+from urllib import parse as urlparse
+from urllib import request as urlrequest
+from urllib.error import HTTPError, URLError
 from zoneinfo import ZoneInfo
 
 from flask import Flask, abort, jsonify, render_template
@@ -25,6 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent
 OBSERVATIONS_PATH = Path(
     os.environ.get("OBSERVATIONS_PATH", str(BASE_DIR / "laundrytrack-observations.jsonl"))
 )
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SECRET_KEY = os.environ.get("SUPABASE_SECRET_KEY", "")
+SUPABASE_TABLE = "machine_observations"
 POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
 SELENIUM_TIMEOUT_SECONDS = int(os.environ.get("SELENIUM_TIMEOUT_SECONDS", "12"))
 MAX_OBSERVATIONS_IN_MEMORY = int(os.environ.get("MAX_OBSERVATIONS_IN_MEMORY", "1000"))
@@ -57,8 +63,51 @@ def parse_observed_at(value: str) -> datetime:
 
 
 def init_storage() -> None:
+    if using_supabase():
+        return
     OBSERVATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
     OBSERVATIONS_PATH.touch(exist_ok=True)
+
+
+def using_supabase() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_SECRET_KEY)
+
+
+def supabase_request(
+    method: str,
+    path: str,
+    query: Optional[dict[str, Union[str, int]]] = None,
+    payload: Optional[list[dict]] = None,
+) -> list[dict]:
+    if not using_supabase():
+        raise RuntimeError("Supabase is not configured")
+
+    url = f"{SUPABASE_URL}/rest/v1/{path}"
+    if query:
+        url = f"{url}?{urlparse.urlencode(query)}"
+
+    headers = {
+        "apikey": SUPABASE_SECRET_KEY,
+        "Authorization": f"Bearer {SUPABASE_SECRET_KEY}",
+        "Accept": "application/json",
+    }
+    data = None
+    if payload is not None:
+        data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+        headers["Prefer"] = "return=minimal"
+
+    request = urlrequest.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urlrequest.urlopen(request, timeout=12) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:300]
+        raise RuntimeError(f"Supabase request failed ({exc.code}): {detail}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"Supabase connection failed: {exc.reason}") from exc
+
+    return json.loads(body) if body else []
 
 
 def create_driver() -> webdriver.Chrome:
@@ -152,37 +201,73 @@ def read_machine(driver, machine_id: int, url: str) -> MachineReading:
 
 
 def save_readings(readings: list[MachineReading]) -> None:
+    records = []
+    for reading in readings:
+        record = asdict(reading)
+        record["url"] = machines[reading.machine_id]
+        records.append(record)
+
     with storage_lock:
+        if using_supabase():
+            supabase_request("POST", SUPABASE_TABLE, payload=records)
+            return
+
         with OBSERVATIONS_PATH.open("a", encoding="utf-8") as handle:
-            for reading in readings:
-                record = asdict(reading)
-                record["url"] = machines[reading.machine_id]
+            for record in records:
                 handle.write(json.dumps(record, separators=(",", ":")) + "\n")
 
 
-def read_observations() -> list[dict]:
-    if not OBSERVATIONS_PATH.exists():
-        return []
+def read_observations(
+    limit: Optional[int] = None,
+    status: Optional[str] = None,
+    observed_since: Optional[datetime] = None,
+) -> list[dict]:
+    limit = limit or MAX_OBSERVATIONS_IN_MEMORY
+    if using_supabase():
+        query: dict[str, Union[str, int]] = {
+            "select": "machine_id,status,minutes_remaining,observed_at,error,url",
+            "order": "observed_at.desc",
+            "limit": limit,
+        }
+        if status:
+            query["status"] = f"eq.{status}"
+        if observed_since:
+            query["observed_at"] = f"gte.{observed_since.astimezone(timezone.utc).isoformat()}"
+        records = supabase_request("GET", SUPABASE_TABLE, query=query)
+    else:
+        if not OBSERVATIONS_PATH.exists():
+            return []
 
-    lines = deque(maxlen=MAX_OBSERVATIONS_IN_MEMORY)
-    with storage_lock:
-        with OBSERVATIONS_PATH.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                lines.append(line)
+        lines = deque(maxlen=limit)
+        with storage_lock:
+            with OBSERVATIONS_PATH.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    lines.append(line)
 
-    records = []
-    for line in lines:
-        line = line.strip()
-        if not line:
+        records = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    filtered = []
+    for record in records:
+        if record.get("status") == "unknown":
+            record["status"] = "out_of_order"
+        if status and record.get("status") != status:
             continue
-        try:
-            record = json.loads(line)
-            if record.get("status") == "unknown":
-                record["status"] = "out_of_order"
-            records.append(record)
-        except json.JSONDecodeError:
-            continue
-    return records
+        if observed_since:
+            try:
+                if parse_observed_at(record["observed_at"]) < observed_since:
+                    continue
+            except (KeyError, TypeError, ValueError):
+                continue
+        filtered.append(record)
+    return filtered
 
 
 def failed_poll_readings(error: Exception) -> list[MachineReading]:
@@ -323,26 +408,20 @@ def weekly_machine_usage(machine_id: int, now: Optional[datetime] = None) -> dic
     week_end = week_start + timedelta(days=7)
     intervals = []
 
-    if OBSERVATIONS_PATH.exists():
-        with storage_lock:
-            with OBSERVATIONS_PATH.open("r", encoding="utf-8") as handle:
-                for line in handle:
-                    try:
-                        row = json.loads(line)
-                        if (
-                            row.get("machine_id") != machine_id
-                            or row.get("status") != "occupied"
-                            or row.get("minutes_remaining") is None
-                        ):
-                            continue
-                        start = parse_observed_at(row["observed_at"]).astimezone(
-                            DISPLAY_TIMEZONE
-                        )
-                        end = start + timedelta(minutes=int(row["minutes_remaining"]))
-                        if end > week_start and start < week_end:
-                            intervals.append((max(start, week_start), min(end, week_end)))
-                    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-                        continue
+    for row in read_observations(
+        limit=10000,
+        status="occupied",
+        observed_since=week_start,
+    ):
+        try:
+            if row.get("machine_id") != machine_id or row.get("minutes_remaining") is None:
+                continue
+            start = parse_observed_at(row["observed_at"]).astimezone(DISPLAY_TIMEZONE)
+            end = start + timedelta(minutes=int(row["minutes_remaining"]))
+            if end > week_start and start < week_end:
+                intervals.append((max(start, week_start), min(end, week_end)))
+        except (KeyError, TypeError, ValueError):
+            continue
 
     merged = []
     for start, end in sorted(intervals):
