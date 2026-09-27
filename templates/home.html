@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Home · UMD LaundryTrack</title>
+    <link rel="icon" href="/static/umd-mark.png" type="image/png">
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="header-brand-group">
+          <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Hide locations menu" aria-controls="sidebar" aria-expanded="true" title="Toggle menu">
+            <span class="menu-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
+          <a class="brand" href="{{ url_for('home') }}" aria-label="UMD LaundryTrack home">
+            <img src="/static/umd-mark.png" alt="">
+            <span class="brand-name">UMD LaundryTrack</span>
+          </a>
+        </div>
+        <div class="header-status">
+          <span class="live-dot" aria-hidden="true"></span>
+          <p id="last-seen">{% if summary.last_observed_at %}Status overview{% else %}Awaiting first check{% endif %}</p>
+          <button id="overview-refresh" type="button" aria-label="Refresh overview"><span aria-hidden="true">↻</span> Refresh</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="app-layout">
+      {% set active_page = 'home' %}
+      {% include '_navigation.html' %}
+
+      <main class="shell home-shell">
+        <section class="page-intro home-intro">
+          <p class="page-location">Campus laundry</p>
+          <h1>At a glance</h1>
+          <p class="page-subtitle">Live availability across every tracked laundry room.</p>
+        </section>
+
+        <section class="metrics" aria-label="All locations summary">
+          <article class="metric-card machines"><p>Tracked machines</p><span>{{ summary.machine_count }}</span><small>Across {{ locations | length }} location{% if locations | length != 1 %}s{% endif %}</small></article>
+          <article class="metric-card occupied-metric"><p>Busy now</p><span>{{ summary.occupied_count }}</span><small>Currently in a cycle</small></article>
+          <article class="metric-card available-metric"><p>Available</p><span>{{ summary.available_count }}</span><small>Ready to use</small></article>
+          <article class="metric-card issue-metric"><p>Out of order</p><span>{{ summary.error_count }}</span><small>Reported offline</small></article>
+        </section>
+
+        <section class="workspace-panel locations-overview" aria-labelledby="locations-heading">
+          <div class="panel-heading">
+            <div><p class="section-kicker">Locations</p><h2 id="locations-heading">Laundry rooms</h2></div>
+          </div>
+          <div class="location-overview-list">
+            {% for item in locations %}
+              <article class="location-overview-row">
+                <div class="location-overview-name"><span aria-hidden="true"></span><div><h3>{{ item.location.name }}</h3><p>{{ item.machine_count }} machines tracked</p></div></div>
+                <div class="group-overview-grid">
+                  {% for group_item in item.groups %}
+                    <a class="group-overview-link" href="{{ url_for('dashboard', location_slug=item.location.slug, machine_type=group_item.group.slug) }}">
+                      <div><strong>{{ group_item.group.label }}</strong><small>{{ group_item.summary.machine_count }} machines</small></div>
+                      <div class="group-counts"><span class="available-count">{{ group_item.summary.available_count }} available</span><span>{{ group_item.summary.occupied_count }} busy</span></div>
+                      <b aria-hidden="true">›</b>
+                    </a>
+                  {% endfor %}
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/navigation.js"></script>
+    <script src="/static/home.js"></script>
+  </body>
+</html>

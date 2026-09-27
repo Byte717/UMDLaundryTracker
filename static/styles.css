@@ -161,15 +161,18 @@ button {
 button:hover { background: #eaf6f8; }
 button:disabled { cursor: wait; opacity: 0.7; }
 
-#refresh {
+#refresh,
+#overview-refresh {
   min-height: 34px;
   border-color: rgba(255, 255, 255, 0.28);
   color: #ffffff;
   background: rgba(255, 255, 255, 0.08);
 }
 
-#refresh:hover { background: rgba(255, 255, 255, 0.16); }
-#refresh span { display: inline-block; margin-right: 4px; font-size: 17px; line-height: 0; }
+#refresh:hover,
+#overview-refresh:hover { background: rgba(255, 255, 255, 0.16); }
+#refresh span,
+#overview-refresh span { display: inline-block; margin-right: 4px; font-size: 17px; line-height: 0; }
 
 .app-layout {
   min-height: calc(100vh - 77px);
@@ -215,6 +218,8 @@ button:disabled { cursor: wait; opacity: 0.7; }
 
 .tree-toggle:hover { background: rgba(255, 255, 255, 0.08); }
 
+.tree-toggle[aria-expanded="true"] { color: #ffd200; }
+
 .tree-root-toggle {
   color: #aeb5c0;
   font-size: 11px;
@@ -223,6 +228,21 @@ button:disabled { cursor: wait; opacity: 0.7; }
 }
 
 .location-toggle { font-size: 14px; }
+
+.tree-primary-link {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+  padding: 0 29px;
+  border-radius: 6px;
+  color: #c8cdd5;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.tree-primary-link:hover { color: #ffffff; background: rgba(255, 255, 255, 0.08); }
+.tree-primary-link.active { color: #1c1c1c; background: #ffd200; }
 
 .tree-caret {
   width: 14px;
@@ -323,6 +343,73 @@ button:disabled { cursor: wait; opacity: 0.7; }
 .sidebar-scrim { display: none; }
 
 .shell { padding: 38px 0 52px; }
+
+.page-subtitle {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.locations-overview { margin-top: 24px; }
+
+.location-overview-list { display: grid; }
+
+.location-overview-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr);
+  gap: 28px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+}
+
+.location-overview-row:first-child { border-top: 0; }
+
+.location-overview-name {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 9px 0;
+}
+
+.location-overview-name > span {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: #e21833;
+}
+
+.location-overview-name h3 { font-size: 17px; }
+.location-overview-name p { margin-top: 5px; color: var(--muted); font-size: 12px; }
+
+.group-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.group-overview-link {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 15px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: #ffffff;
+}
+
+.group-overview-link:hover { color: var(--ink); border-color: #c7ced9; background: #f9fafb; }
+.group-overview-link strong,
+.group-overview-link small { display: block; }
+.group-overview-link small { margin-top: 4px; color: var(--faint); font-size: 10px; }
+.group-overview-link > b { color: var(--faint); font-size: 22px; }
+
+.group-counts { display: grid; gap: 4px; color: var(--muted); font-size: 11px; text-align: right; }
+.group-counts .available-count { color: var(--green); font-weight: 800; }
 
 .page-intro {
   margin-bottom: 28px;
@@ -753,6 +840,7 @@ h2 { font-size: 21px; line-height: 1.2; }
   .panel-heading { align-items: start; flex-direction: column; }
   .status-legend { justify-content: flex-start; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .location-overview-row { grid-template-columns: 1fr; gap: 8px; }
 }
 
 @media (max-width: 520px) {
@@ -768,6 +856,8 @@ h2 { font-size: 21px; line-height: 1.2; }
   .metric-card small { display: none; }
   .workspace-panel { margin-top: 16px; padding: 16px; }
   .machine-grid { grid-template-columns: 1fr; }
+  .group-overview-grid { grid-template-columns: 1fr; }
+  .group-overview-link { grid-template-columns: minmax(0, 1fr) auto auto; }
   .machine-card { min-height: 174px; }
   .timeline article { grid-template-columns: 1fr; gap: 7px; padding: 13px 0; }
   .history-caption { display: none; }

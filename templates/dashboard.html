@@ -34,49 +34,8 @@
     </header>
 
     <div class="app-layout">
-      <aside class="sidebar" id="sidebar">
-        <nav aria-label="Laundry locations">
-          <button class="tree-toggle tree-root-toggle" type="button" aria-expanded="true" aria-controls="locations-tree">
-            <span class="tree-caret" aria-hidden="true">›</span>
-            <span>Locations</span>
-          </button>
-          <div class="tree-children" id="locations-tree">
-            <ul class="tree-list tree-locations">
-              {% for nav_location in catalog.locations %}
-                {% set location_active = nav_location.slug == location.slug %}
-                <li>
-                  <button
-                    class="tree-toggle location-toggle"
-                    type="button"
-                    aria-expanded="{{ 'true' if location_active else 'false' }}"
-                    aria-controls="location-{{ nav_location.slug }}-tree"
-                  >
-                    <span class="tree-caret" aria-hidden="true">›</span>
-                    <span>{{ nav_location.name }}</span>
-                  </button>
-                  <div class="tree-children{% if not location_active %} tree-collapsed{% endif %}" id="location-{{ nav_location.slug }}-tree">
-                    <ul class="tree-list machine-type-list">
-                      {% for nav_group in nav_location.machine_types %}
-                        <li>
-                          <a
-                            href="{{ url_for('dashboard', location_slug=nav_location.slug, machine_type=nav_group.slug) }}"
-                            class="location-link{% if location_active and nav_group.slug == group.slug %} active{% endif %}"
-                            {% if location_active and nav_group.slug == group.slug %}aria-current="page"{% endif %}
-                          >
-                            <span>{{ nav_group.label }}</span>
-                            <small>{{ nav_group.machines | length }}</small>
-                          </a>
-                        </li>
-                      {% endfor %}
-                    </ul>
-                  </div>
-                </li>
-              {% endfor %}
-            </ul>
-          </div>
-        </nav>
-      </aside>
-      <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Close locations menu"></button>
+      {% set active_page = 'dashboard' %}
+      {% include '_navigation.html' %}
 
       <main class="shell">
         <section class="page-intro">
@@ -187,6 +146,7 @@
       <div class="usage-chart" id="usage-chart" aria-live="polite"></div>
       <p class="usage-footnote">Intervals are inferred from saved occupied readings and reported cycle time.</p>
     </dialog>
+    <script src="/static/navigation.js"></script>
     <script src="/static/app.js"></script>
   </body>
 </html>

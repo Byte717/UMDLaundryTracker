@@ -1,0 +1,46 @@
+<aside class="sidebar" id="sidebar">
+  <nav aria-label="Laundry navigation">
+    <a class="tree-primary-link{% if active_page == 'home' %} active{% endif %}" href="{{ url_for('home') }}"{% if active_page == 'home' %} aria-current="page"{% endif %}>
+      <span>Home</span>
+    </a>
+    <button class="tree-toggle tree-root-toggle" type="button" aria-expanded="{{ 'true' if active_page == 'dashboard' else 'false' }}" aria-controls="locations-tree">
+      <span class="tree-caret" aria-hidden="true">›</span>
+      <span>Locations</span>
+    </button>
+    <div class="tree-children{% if active_page != 'dashboard' %} tree-collapsed{% endif %}" id="locations-tree">
+      <ul class="tree-list tree-locations">
+        {% for nav_location in catalog.locations %}
+          {% set location_active = active_page == 'dashboard' and nav_location.slug == location.slug %}
+          <li>
+            <button
+              class="tree-toggle location-toggle"
+              type="button"
+              aria-expanded="{{ 'true' if location_active else 'false' }}"
+              aria-controls="location-{{ nav_location.slug }}-tree"
+            >
+              <span class="tree-caret" aria-hidden="true">›</span>
+              <span>{{ nav_location.name }}</span>
+            </button>
+            <div class="tree-children{% if not location_active %} tree-collapsed{% endif %}" id="location-{{ nav_location.slug }}-tree">
+              <ul class="tree-list machine-type-list">
+                {% for nav_group in nav_location.machine_types %}
+                  <li>
+                    <a
+                      href="{{ url_for('dashboard', location_slug=nav_location.slug, machine_type=nav_group.slug) }}"
+                      class="location-link{% if location_active and nav_group.slug == group.slug %} active{% endif %}"
+                      {% if location_active and nav_group.slug == group.slug %}aria-current="page"{% endif %}
+                    >
+                      <span>{{ nav_group.label }}</span>
+                      <small>{{ nav_group.machines | length }}</small>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </nav>
+</aside>
+<button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Close locations menu"></button>

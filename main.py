@@ -14,7 +14,7 @@ from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 from zoneinfo import ZoneInfo
 
-from flask import Flask, abort, jsonify, redirect, render_template, url_for
+from flask import Flask, abort, jsonify, render_template
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.options import Options
@@ -573,18 +573,53 @@ def machine_summary(
     }
 
 
+def overview_summary() -> tuple[dict, list[dict]]:
+    latest = latest_observations()
+    latest_by_scope = {}
+    for row in latest:
+        latest_by_scope.setdefault(
+            (row["location_slug"], row["machine_type"]), []
+        ).append(row)
+
+    locations = []
+    for location in CATALOG.locations:
+        groups = []
+        for group in location.machine_types:
+            group_latest = latest_by_scope.get((location.slug, group.slug), [])
+            groups.append(
+                {
+                    "group": group,
+                    "summary": machine_summary(
+                        group.machines,
+                        location.slug,
+                        group.slug,
+                        group_latest,
+                    ),
+                }
+            )
+        locations.append(
+            {
+                "location": location,
+                "machine_count": sum(len(group.machines) for group in location.machine_types),
+                "groups": groups,
+            }
+        )
+
+    return machine_summary(ALL_MACHINES, "", "", latest), locations
+
+
 def create_app() -> Flask:
     init_storage()
     app = Flask(__name__)
 
     @app.get("/")
     def home():
-        return redirect(
-            url_for(
-                "dashboard",
-                location_slug=DEFAULT_LOCATION.slug,
-                machine_type=DEFAULT_LOCATION.default_machine_type,
-            )
+        summary, locations = overview_summary()
+        return render_template(
+            "home.html",
+            catalog=CATALOG,
+            summary=summary,
+            locations=locations,
         )
 
     @app.get("/locations/<location_slug>/<machine_type>")
