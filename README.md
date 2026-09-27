@@ -32,7 +32,8 @@ Useful environment variables:
 
 ## Files
 
-- `links.py`: machine IDs and CSC GO URLs
+- `machines.json`: locations, machine types, IDs, and CSC GO URLs
+- `catalog.py`: validated location and machine catalog classes
 - `main.py`: Flask app, Selenium scraper, persistence, and background poller
 - `templates/dashboard.html`: dashboard markup
 - `static/styles.css`: dashboard styling

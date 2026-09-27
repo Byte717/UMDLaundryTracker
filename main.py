@@ -14,17 +14,21 @@ from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 from zoneinfo import ZoneInfo
 
-from flask import Flask, abort, jsonify, render_template
+from flask import Flask, abort, jsonify, redirect, render_template, url_for
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from links import machines
+from catalog import Machine, load_catalog
 
 
 BASE_DIR = Path(__file__).resolve().parent
+CATALOG = load_catalog(BASE_DIR / "machines.json")
+ALL_MACHINES = CATALOG.machines()
+MACHINES_BY_KEY = {machine.key: machine for machine in ALL_MACHINES}
+DEFAULT_LOCATION = CATALOG.locations[0]
 OBSERVATIONS_PATH = Path(
     os.environ.get("OBSERVATIONS_PATH", str(BASE_DIR / "laundrytrack-observations.jsonl"))
 )
@@ -42,12 +46,14 @@ DISPLAY_TIMEZONE_NAME = os.environ.get("DISPLAY_TIMEZONE", "America/New_York")
 DISPLAY_TIMEZONE = ZoneInfo(DISPLAY_TIMEZONE_NAME)
 storage_lock = threading.Lock()
 poll_lock = threading.Lock()
-poll_cursor = 0
+poll_cursors: dict[str, int] = {}
 
 
 @dataclass(frozen=True)
 class MachineReading:
     machine_id: int
+    location_slug: str
+    machine_type: str
     status: str
     minutes_remaining: Optional[int]
     observed_at: str
@@ -187,24 +193,42 @@ def get_machine_status(driver):
     return False
 
 
-def read_machine(driver, machine_id: int, url: str) -> MachineReading:
+def read_machine(driver, machine: Machine) -> MachineReading:
     observed_at = utc_now()
     try:
-        driver.get(url)
+        driver.get(machine.url)
         WebDriverWait(driver, SELENIUM_TIMEOUT_SECONDS).until(page_rendered)
         status, minutes = WebDriverWait(driver, SELENIUM_TIMEOUT_SECONDS).until(
             get_machine_status
         )
-        return MachineReading(machine_id, status, minutes, observed_at)
+        return MachineReading(
+            machine.id,
+            machine.location_slug,
+            machine.machine_type,
+            status,
+            minutes,
+            observed_at,
+        )
     except (TimeoutException, WebDriverException, ValueError) as exc:
-        return MachineReading(machine_id, "out_of_order", None, observed_at, str(exc)[:500])
+        return MachineReading(
+            machine.id,
+            machine.location_slug,
+            machine.machine_type,
+            "out_of_order",
+            None,
+            observed_at,
+            str(exc)[:500],
+        )
 
 
 def save_readings(readings: list[MachineReading]) -> None:
     records = []
     for reading in readings:
         record = asdict(reading)
-        record["url"] = machines[reading.machine_id]
+        machine = MACHINES_BY_KEY[
+            (reading.location_slug, reading.machine_type, reading.machine_id)
+        ]
+        record["url"] = machine.url
         records.append(record)
 
     with storage_lock:
@@ -221,11 +245,13 @@ def read_observations(
     limit: Optional[int] = None,
     status: Optional[str] = None,
     observed_since: Optional[datetime] = None,
+    location_slug: Optional[str] = None,
+    machine_type: Optional[str] = None,
 ) -> list[dict]:
     limit = limit or MAX_OBSERVATIONS_IN_MEMORY
     if using_supabase():
         query: dict[str, Union[str, int]] = {
-            "select": "machine_id,status,minutes_remaining,observed_at,error,url",
+            "select": "machine_id,location_slug,machine_type,status,minutes_remaining,observed_at,error,url",
             "order": "observed_at.desc",
             "limit": limit,
         }
@@ -233,6 +259,10 @@ def read_observations(
             query["status"] = f"eq.{status}"
         if observed_since:
             query["observed_at"] = f"gte.{observed_since.astimezone(timezone.utc).isoformat()}"
+        if location_slug:
+            query["location_slug"] = f"eq.{location_slug}"
+        if machine_type:
+            query["machine_type"] = f"eq.{machine_type}"
         records = supabase_request("GET", SUPABASE_TABLE, query=query)
     else:
         if not OBSERVATIONS_PATH.exists():
@@ -256,6 +286,8 @@ def read_observations(
 
     filtered = []
     for record in records:
+        record.setdefault("location_slug", DEFAULT_LOCATION.slug)
+        record.setdefault("machine_type", DEFAULT_LOCATION.default_machine_type)
         if record.get("status") == "unknown":
             record["status"] = "out_of_order"
         if status and record.get("status") != status:
@@ -266,64 +298,88 @@ def read_observations(
                     continue
             except (KeyError, TypeError, ValueError):
                 continue
+        if location_slug and record.get("location_slug") != location_slug:
+            continue
+        if machine_type and record.get("machine_type") != machine_type:
+            continue
         filtered.append(record)
     return filtered
 
 
-def failed_poll_readings(error: Exception) -> list[MachineReading]:
+def failed_poll_readings(
+    error: Exception, targets: tuple[Machine, ...]
+) -> list[MachineReading]:
     observed_at = utc_now()
     message = str(error)[:500]
     return [
-        MachineReading(machine_id, "out_of_order", None, observed_at, message)
-        for machine_id in sorted(machines)
+        MachineReading(
+            machine.id,
+            machine.location_slug,
+            machine.machine_type,
+            "out_of_order",
+            None,
+            observed_at,
+            message,
+        )
+        for machine in targets
     ]
 
 
-def poll_machine(machine_id: int, url: str) -> MachineReading:
+def poll_machine(machine: Machine) -> MachineReading:
     driver = create_driver()
     try:
-        return read_machine(driver, machine_id, url)
+        return read_machine(driver, machine)
     finally:
         driver.quit()
 
 
-def poll_once() -> list[MachineReading]:
-    global poll_cursor
-
+def poll_once(
+    targets: Optional[tuple[Machine, ...]] = None,
+    scope_key: str = "all",
+) -> list[MachineReading]:
     if not poll_lock.acquire(blocking=False):
+        return []
+
+    target_machines = tuple(sorted(targets or ALL_MACHINES, key=lambda item: item.key))
+    if not target_machines:
+        poll_lock.release()
         return []
 
     readings = []
     try:
-        machine_items = sorted(machines.items())
-        batch_size = max(1, min(POLL_BATCH_SIZE, len(machine_items)))
-        latest_by_id = {row["machine_id"]: row for row in latest_observations(adjust=False)}
+        batch_size = max(1, min(POLL_BATCH_SIZE, len(target_machines)))
+        latest_by_key = {
+            (row["location_slug"], row["machine_type"], row["machine_id"]): row
+            for row in latest_observations(adjust=False)
+        }
         now = datetime.now(timezone.utc)
-        due_items = []
+        due_machines = []
+        cursor = poll_cursors.get(scope_key, 0) % len(target_machines)
 
-        for offset in range(len(machine_items)):
-            machine_id, url = machine_items[(poll_cursor + offset) % len(machine_items)]
-            row = latest_by_id.get(machine_id)
+        for offset in range(len(target_machines)):
+            machine = target_machines[(cursor + offset) % len(target_machines)]
+            row = latest_by_key.get(machine.key)
             if should_poll_machine(row, now):
-                due_items.append((machine_id, url))
-            if len(due_items) >= batch_size:
+                due_machines.append(machine)
+            if len(due_machines) >= batch_size:
                 break
 
-        if not due_items:
-            poll_cursor = (poll_cursor + 1) % len(machine_items)
+        if not due_machines:
+            poll_cursors[scope_key] = (cursor + 1) % len(target_machines)
             return []
 
-        last_polled_id = due_items[-1][0]
-        last_index = [machine_id for machine_id, _ in machine_items].index(last_polled_id)
-        poll_cursor = (last_index + 1) % len(machine_items)
+        last_index = target_machines.index(due_machines[-1])
+        poll_cursors[scope_key] = (last_index + 1) % len(target_machines)
 
-        for machine_id, url in due_items:
+        for machine in due_machines:
             try:
-                readings.append(poll_machine(machine_id, url))
+                readings.append(poll_machine(machine))
             except Exception as exc:
                 readings.append(
                     MachineReading(
-                        machine_id,
+                        machine.id,
+                        machine.location_slug,
+                        machine.machine_type,
                         "out_of_order",
                         None,
                         utc_now(),
@@ -331,11 +387,12 @@ def poll_once() -> list[MachineReading]:
                     )
                 )
     except Exception as exc:
-        readings = failed_poll_readings(exc)
+        readings = failed_poll_readings(exc, target_machines)
     finally:
         poll_lock.release()
 
-    save_readings(readings)
+    if readings:
+        save_readings(readings)
     return readings
 
 
@@ -377,30 +434,50 @@ def adjusted_observation(row: dict, now: Optional[datetime] = None) -> dict:
     return adjusted
 
 
-def latest_observations(adjust: bool = True) -> list[dict]:
+def latest_observations(
+    adjust: bool = True,
+    location_slug: Optional[str] = None,
+    machine_type: Optional[str] = None,
+) -> list[dict]:
     latest = {}
-    for row in read_observations():
-        current = latest.get(row["machine_id"])
+    for row in read_observations(
+        location_slug=location_slug,
+        machine_type=machine_type,
+    ):
+        key = (row["location_slug"], row["machine_type"], row["machine_id"])
+        current = latest.get(key)
         if current is None or row["observed_at"] > current["observed_at"]:
-            latest[row["machine_id"]] = row
+            latest[key] = row
 
-    rows = [latest[machine_id] for machine_id in sorted(latest)]
+    rows = [latest[key] for key in sorted(latest)]
     if adjust:
         now = datetime.now(timezone.utc)
         return [adjusted_observation(row, now) for row in rows]
     return rows
 
 
-def observation_history(limit: int = 500) -> list[dict]:
+def observation_history(
+    limit: int = 500,
+    location_slug: Optional[str] = None,
+    machine_type: Optional[str] = None,
+) -> list[dict]:
     rows = sorted(
-        read_observations(),
+        read_observations(
+            location_slug=location_slug,
+            machine_type=machine_type,
+        ),
         key=lambda row: (row["observed_at"], row["machine_id"]),
         reverse=True,
     )
     return rows[:limit]
 
 
-def weekly_machine_usage(machine_id: int, now: Optional[datetime] = None) -> dict:
+def weekly_machine_usage(
+    location_slug: str,
+    machine_type: str,
+    machine_id: int,
+    now: Optional[datetime] = None,
+) -> dict:
     now = (now or datetime.now(timezone.utc)).astimezone(DISPLAY_TIMEZONE)
     week_start = (now - timedelta(days=now.weekday())).replace(
         hour=0, minute=0, second=0, microsecond=0
@@ -412,6 +489,8 @@ def weekly_machine_usage(machine_id: int, now: Optional[datetime] = None) -> dic
         limit=10000,
         status="occupied",
         observed_since=week_start,
+        location_slug=location_slug,
+        machine_type=machine_type,
     ):
         try:
             if row.get("machine_id") != machine_id or row.get("minutes_remaining") is None:
@@ -471,12 +550,21 @@ def weekly_machine_usage(machine_id: int, now: Optional[datetime] = None) -> dic
     }
 
 
-def machine_summary() -> dict:
-    latest = latest_observations()
+def machine_summary(
+    targets: tuple[Machine, ...],
+    location_slug: str,
+    machine_type: str,
+    latest: Optional[list[dict]] = None,
+) -> dict:
+    if latest is None:
+        latest = latest_observations(
+            location_slug=location_slug,
+            machine_type=machine_type,
+        )
     occupied = [row for row in latest if row["status"] == "occupied"]
     errors = [row for row in latest if row["status"] == "out_of_order"]
     return {
-        "machine_count": len(machines),
+        "machine_count": len(targets),
         "latest_count": len(latest),
         "occupied_count": len(occupied),
         "available_count": len(latest) - len(occupied) - len(errors),
@@ -490,35 +578,93 @@ def create_app() -> Flask:
     app = Flask(__name__)
 
     @app.get("/")
-    def dashboard():
+    def home():
+        return redirect(
+            url_for(
+                "dashboard",
+                location_slug=DEFAULT_LOCATION.slug,
+                machine_type=DEFAULT_LOCATION.default_machine_type,
+            )
+        )
+
+    @app.get("/locations/<location_slug>/<machine_type>")
+    def dashboard(location_slug: str, machine_type: str):
+        try:
+            location = CATALOG.location(location_slug)
+            group = location.group(machine_type)
+        except KeyError:
+            abort(404)
+        latest = latest_observations(
+            location_slug=location_slug,
+            machine_type=machine_type,
+        )
         return render_template(
             "dashboard.html",
-            machines=machines,
-            latest=latest_observations(),
-            history=observation_history(),
-            summary=machine_summary(),
+            catalog=CATALOG,
+            location=location,
+            group=group,
+            machines=group.machines,
+            latest=latest,
+            history=observation_history(
+                location_slug=location_slug,
+                machine_type=machine_type,
+            ),
+            summary=machine_summary(
+                group.machines,
+                location_slug,
+                machine_type,
+                latest,
+            ),
             poll_interval=POLL_INTERVAL_SECONDS,
         )
 
-    @app.get("/api/status")
-    def api_status():
+    @app.get("/api/locations/<location_slug>/<machine_type>/status")
+    def api_status(location_slug: str, machine_type: str):
+        try:
+            group = CATALOG.location(location_slug).group(machine_type)
+        except KeyError:
+            abort(404)
+        latest = latest_observations(
+            location_slug=location_slug,
+            machine_type=machine_type,
+        )
         return jsonify(
             {
-                "summary": machine_summary(),
-                "machines": latest_observations(),
-                "history": observation_history(),
+                "summary": machine_summary(
+                    group.machines,
+                    location_slug,
+                    machine_type,
+                    latest,
+                ),
+                "machines": latest,
+                "history": observation_history(
+                    location_slug=location_slug,
+                    machine_type=machine_type,
+                ),
             }
         )
 
-    @app.get("/api/machines/<int:machine_id>/usage")
-    def api_machine_usage(machine_id: int):
-        if machine_id not in machines:
+    @app.get(
+        "/api/locations/<location_slug>/<machine_type>/machines/<int:machine_id>/usage"
+    )
+    def api_machine_usage(location_slug: str, machine_type: str, machine_id: int):
+        try:
+            CATALOG.machine(location_slug, machine_type, machine_id)
+        except KeyError:
             abort(404)
-        return jsonify(weekly_machine_usage(machine_id))
+        return jsonify(weekly_machine_usage(location_slug, machine_type, machine_id))
 
-    @app.post("/api/poll")
-    def api_poll():
-        return jsonify({"machines": [reading.__dict__ for reading in poll_once()]})
+    @app.post("/api/locations/<location_slug>/<machine_type>/poll")
+    def api_poll(location_slug: str, machine_type: str):
+        try:
+            group = CATALOG.location(location_slug).group(machine_type)
+        except KeyError:
+            abort(404)
+        readings = poll_once(
+            group.machines,
+            scope_key=f"{location_slug}:{machine_type}",
+        )
+        return jsonify({"machines": [reading.__dict__ for reading in readings]})
 
     return app
 

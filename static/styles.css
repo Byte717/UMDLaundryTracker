@@ -43,6 +43,9 @@ a:hover { color: #045e6b; }
 h1, h2, h3, p { margin: 0; }
 
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   color: #f8fbff;
   border-top: 5px solid #e21833;
   background: #1c1c1c;
@@ -61,6 +64,23 @@ h1, h2, h3, p { margin: 0; }
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+}
+
+.header-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-toggle {
+  display: none;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  background: transparent;
+  font-size: 19px;
 }
 
 .brand {
@@ -135,14 +155,102 @@ button:disabled { cursor: wait; opacity: 0.7; }
 #refresh:hover { background: rgba(255, 255, 255, 0.16); }
 #refresh span { display: inline-block; margin-right: 4px; font-size: 17px; line-height: 0; }
 
+.app-layout {
+  min-height: calc(100vh - 77px);
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+}
+
+.sidebar {
+  position: relative;
+  z-index: 20;
+  padding: 30px 16px;
+  border-right: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.sidebar nav {
+  position: sticky;
+  top: 107px;
+}
+
+.sidebar-heading {
+  margin: 0 10px 17px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.location-group { margin-bottom: 20px; }
+
+.location-name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px 9px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.location-name > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #e21833;
+}
+
+.location-links { display: grid; gap: 3px; }
+
+.location-link {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 27px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.location-link:hover {
+  color: var(--ink);
+  background: #f3f5f8;
+}
+
+.location-link.active {
+  color: #9f1025;
+  background: #fff0f2;
+}
+
+.location-link small {
+  min-width: 23px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: var(--faint);
+  background: #f0f2f5;
+  font-size: 10px;
+  text-align: center;
+}
+
+.location-link.active small { color: #9f1025; background: #ffffff; }
+
+.sidebar-scrim { display: none; }
+
 .shell { padding: 38px 0 52px; }
 
 .page-intro {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 20px;
   margin-bottom: 28px;
+}
+
+.page-location {
+  margin-bottom: 6px;
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 820;
+  text-transform: uppercase;
 }
 
 .section-kicker {
@@ -514,13 +622,49 @@ h2 { font-size: 21px; line-height: 1.2; }
   font-size: 11px;
 }
 
+@media (max-width: 900px) {
+  .app-layout { display: block; }
+  .menu-toggle { display: block; }
+  .sidebar {
+    position: fixed;
+    top: 77px;
+    bottom: 0;
+    left: 0;
+    width: min(280px, calc(100% - 54px));
+    padding-top: 24px;
+    overflow-y: auto;
+    transform: translateX(-101%);
+    transition: transform 180ms ease;
+  }
+  .sidebar nav { position: static; }
+  .sidebar-scrim {
+    position: fixed;
+    inset: 77px 0 0;
+    z-index: 15;
+    width: 100%;
+    min-height: 0;
+    display: block;
+    visibility: hidden;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    opacity: 0;
+    background: rgba(17, 24, 39, 0.5);
+    transition: opacity 180ms ease, visibility 180ms ease;
+  }
+  .nav-open { overflow: hidden; }
+  .nav-open .sidebar { transform: translateX(0); }
+  .nav-open .sidebar-scrim { visibility: visible; opacity: 1; }
+}
+
 @media (max-width: 800px) {
+  .sidebar { top: 69px; }
+  .sidebar-scrim { inset: 69px 0 0; }
   .header-inner,
   .shell { width: min(100% - 28px, 1240px); }
   .header-inner { min-height: 64px; }
   .header-status { gap: 9px; }
   #last-seen { display: none; }
-  .page-intro,
   .panel-heading { align-items: start; flex-direction: column; }
   .status-legend { justify-content: flex-start; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }

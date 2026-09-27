@@ -7,6 +7,9 @@ const usageTitle = document.querySelector("#usage-title");
 const usageWeek = document.querySelector("#usage-week");
 const usageSummary = document.querySelector("#usage-summary");
 const usageChart = document.querySelector("#usage-chart");
+const menuToggle = document.querySelector("#menu-toggle");
+const sidebarScrim = document.querySelector("#sidebar-scrim");
+const machineLabel = document.body.dataset.machineLabel || "Machine";
 
 let lastObservedAt = lastSeen.dataset.observedAt || null;
 
@@ -96,7 +99,7 @@ function render(data) {
     ? occupiedRows.map((row) => `
         <article>
           <time>${new Date(row.observed_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</time>
-          <span>Machine <b>${row.machine_id}</b> was occupied</span>
+          <span>${machineLabel} <b>${row.machine_id}</b> was occupied</span>
           <strong class="history-remaining" data-observed-at="${row.observed_at}" data-minutes="${row.minutes_remaining}">${row.minutes_remaining} min left</strong>
         </article>
       `).join("")
@@ -113,7 +116,7 @@ function formatUsageDuration(minutes) {
 }
 
 function renderUsage(data) {
-  usageTitle.textContent = `Machine ${data.machine_id}`;
+  usageTitle.textContent = `${machineLabel} ${data.machine_id}`;
   usageWeek.textContent = `Week of ${data.week_start}–${data.week_end}`;
   usageSummary.textContent = formatUsageDuration(data.total_minutes);
 
@@ -141,15 +144,15 @@ function renderUsage(data) {
   `;
 }
 
-async function openUsage(machineId) {
-  usageTitle.textContent = `Machine ${machineId}`;
+async function openUsage(machineId, usageUrl) {
+  usageTitle.textContent = `${machineLabel} ${machineId}`;
   usageWeek.textContent = "Loading this week…";
   usageSummary.textContent = "";
   usageChart.innerHTML = '<p class="usage-loading">Loading usage history…</p>';
   usageDialog.showModal();
 
   try {
-    const response = await fetch(`/api/machines/${machineId}/usage`);
+    const response = await fetch(usageUrl);
     if (!response.ok) throw new Error("Could not load usage history");
     renderUsage(await response.json());
   } catch (error) {
@@ -158,7 +161,8 @@ async function openUsage(machineId) {
 }
 
 async function loadStatus() {
-  const response = await fetch("/api/status");
+  const response = await fetch(document.body.dataset.statusUrl);
+  if (!response.ok) return;
   render(await response.json());
 }
 
@@ -166,7 +170,7 @@ async function runPoll() {
   refresh.disabled = true;
   refresh.innerHTML = '<span aria-hidden="true">↻</span> Checking';
   try {
-    await fetch("/api/poll", { method: "POST" });
+    await fetch(document.body.dataset.pollUrl, { method: "POST" });
     await loadStatus();
   } finally {
     refresh.disabled = false;
@@ -176,16 +180,26 @@ async function runPoll() {
 
 grid.addEventListener("click", (event) => {
   const card = event.target.closest(".machine-card");
-  if (card) openUsage(card.dataset.machineId);
+  if (card) openUsage(card.dataset.machineId, card.dataset.usageUrl);
 });
 
 grid.addEventListener("keydown", (event) => {
   const card = event.target.closest(".machine-card");
   if (card && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
-    openUsage(card.dataset.machineId);
+    openUsage(card.dataset.machineId, card.dataset.usageUrl);
   }
 });
+
+function setNavigationOpen(open) {
+  document.body.classList.toggle("nav-open", open);
+  menuToggle.setAttribute("aria-expanded", String(open));
+}
+
+menuToggle.addEventListener("click", () => {
+  setNavigationOpen(!document.body.classList.contains("nav-open"));
+});
+sidebarScrim.addEventListener("click", () => setNavigationOpen(false));
 
 document.querySelector("#usage-close").addEventListener("click", () => usageDialog.close());
 usageDialog.addEventListener("click", (event) => {

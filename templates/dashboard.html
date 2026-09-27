@@ -3,121 +3,154 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>UMD LaundryTrack</title>
+    <title>{{ location.name }} {{ group.label }} · UMD LaundryTrack</title>
     <link rel="icon" href="/static/umd-mark.png" type="image/png">
     <link rel="stylesheet" href="/static/styles.css">
   </head>
-  <body>
+  <body
+    data-status-url="{{ url_for('api_status', location_slug=location.slug, machine_type=group.slug) }}"
+    data-poll-url="{{ url_for('api_poll', location_slug=location.slug, machine_type=group.slug) }}"
+    data-machine-label="{{ group.singular_label }}"
+  >
     <header class="site-header">
       <div class="header-inner">
-        <a class="brand" href="/" aria-label="UMD LaundryTrack home">
-          <img src="/static/umd-mark.png" alt="">
-          <span class="brand-name">UMD LaundryTrack</span>
-        </a>
+        <div class="header-brand-group">
+          <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Open locations menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <a class="brand" href="{{ url_for('home') }}" aria-label="UMD LaundryTrack home">
+            <img src="/static/umd-mark.png" alt="">
+            <span class="brand-name">UMD LaundryTrack</span>
+          </a>
+        </div>
         <div class="header-status">
           <span class="live-dot" aria-hidden="true"></span>
           <p id="last-seen"{% if summary.last_observed_at %} data-observed-at="{{ summary.last_observed_at }}"{% endif %}>
-            {% if summary.last_observed_at %}
-              Checked recently
-            {% else %}
-              Awaiting first check
-            {% endif %}
+            {% if summary.last_observed_at %}Checked recently{% else %}Awaiting first check{% endif %}
           </p>
           <button id="refresh" type="button" aria-label="Refresh machine status"><span aria-hidden="true">↻</span> Refresh</button>
         </div>
       </div>
     </header>
 
-    <main class="shell">
-      <section class="page-intro">
-        <h1>Leonardtown dryers</h1>
-      </section>
+    <div class="app-layout">
+      <aside class="sidebar" id="sidebar">
+        <nav aria-label="Laundry locations">
+          <p class="sidebar-heading">Locations</p>
+          {% for nav_location in catalog.locations %}
+            <section class="location-group">
+              <p class="location-name"><span aria-hidden="true"></span>{{ nav_location.name }}</p>
+              <div class="location-links">
+                {% for nav_group in nav_location.machine_types %}
+                  <a
+                    href="{{ url_for('dashboard', location_slug=nav_location.slug, machine_type=nav_group.slug) }}"
+                    class="location-link{% if nav_location.slug == location.slug and nav_group.slug == group.slug %} active{% endif %}"
+                    {% if nav_location.slug == location.slug and nav_group.slug == group.slug %}aria-current="page"{% endif %}
+                  >
+                    <span>{{ nav_group.label }}</span>
+                    <small>{{ nav_group.machines | length }}</small>
+                  </a>
+                {% endfor %}
+              </div>
+            </section>
+          {% endfor %}
+        </nav>
+      </aside>
+      <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Close locations menu"></button>
 
-      <section class="metrics" aria-label="Laundry summary">
-        <article class="metric-card machines">
-          <p>Tracked machines</p>
-          <span>{{ summary.machine_count }}</span>
-          <small>Dryers monitored</small>
-        </article>
-        <article class="metric-card occupied-metric">
-          <p>Busy now</p>
-          <span id="occupied-count">{{ summary.occupied_count }}</span>
-          <small>Currently in a cycle</small>
-        </article>
-        <article class="metric-card available-metric">
-          <p>Available</p>
-          <span id="available-count">{{ summary.available_count }}</span>
-          <small>Free or cycle complete</small>
-        </article>
-        <article class="metric-card issue-metric">
-          <p>Out of order</p>
-          <span id="error-count">{{ summary.error_count }}</span>
-          <small>Reported offline</small>
-        </article>
-      </section>
+      <main class="shell">
+        <section class="page-intro">
+          <p class="page-location">{{ location.name }}</p>
+          <h1>{{ group.label }}</h1>
+        </section>
 
-      <section class="workspace-panel" aria-labelledby="machines-heading">
-        <div class="panel-heading">
-          <h2 id="machines-heading">Machine availability</h2>
-          <div class="status-legend" aria-label="Machine status legend">
-            <span><i class="status-swatch available" aria-hidden="true"></i>Available</span>
-            <span><i class="status-swatch occupied" aria-hidden="true"></i>Occupied</span>
-            <span><i class="status-swatch out-of-order" aria-hidden="true"></i>Out of order</span>
+        <section class="metrics" aria-label="Laundry summary">
+          <article class="metric-card machines">
+            <p>Tracked machines</p>
+            <span>{{ summary.machine_count }}</span>
+            <small>{{ group.label }} monitored</small>
+          </article>
+          <article class="metric-card occupied-metric">
+            <p>Busy now</p>
+            <span id="occupied-count">{{ summary.occupied_count }}</span>
+            <small>Currently in a cycle</small>
+          </article>
+          <article class="metric-card available-metric">
+            <p>Available</p>
+            <span id="available-count">{{ summary.available_count }}</span>
+            <small>Free or cycle complete</small>
+          </article>
+          <article class="metric-card issue-metric">
+            <p>Out of order</p>
+            <span id="error-count">{{ summary.error_count }}</span>
+            <small>Reported offline</small>
+          </article>
+        </section>
+
+        <section class="workspace-panel" aria-labelledby="machines-heading">
+          <div class="panel-heading">
+            <h2 id="machines-heading">{{ group.label }} availability</h2>
+            <div class="status-legend" aria-label="Machine status legend">
+              <span><i class="status-swatch available" aria-hidden="true"></i>Available</span>
+              <span><i class="status-swatch occupied" aria-hidden="true"></i>Occupied</span>
+              <span><i class="status-swatch out-of-order" aria-hidden="true"></i>Out of order</span>
+            </div>
           </div>
-        </div>
-        <div class="machine-grid" id="machine-grid">
-          {% for machine_id in machines %}
-            {% set row = latest | selectattr("machine_id", "equalto", machine_id) | list | first %}
-            <article class="machine-card {{ row.status if row else 'pending' }}" data-machine-id="{{ machine_id }}" role="button" tabindex="0" aria-label="View weekly usage for machine {{ machine_id }}">
-              <div class="machine-card-header">
-                <div>
-                  <p class="machine-label">Machine</p>
-                  <h3>{{ machine_id }}</h3>
+          <div class="machine-grid" id="machine-grid">
+            {% for machine in machines %}
+              {% set row = latest | selectattr("machine_id", "equalto", machine.id) | list | first %}
+              <article
+                class="machine-card {{ row.status if row else 'pending' }}"
+                data-machine-id="{{ machine.id }}"
+                data-usage-url="{{ url_for('api_machine_usage', location_slug=location.slug, machine_type=group.slug, machine_id=machine.id) }}"
+                role="button"
+                tabindex="0"
+                aria-label="View weekly usage for {{ group.singular_label | lower }} {{ machine.id }}"
+              >
+                <div class="machine-card-header">
+                  <div>
+                    <p class="machine-label">{{ group.singular_label }}</p>
+                    <h3>{{ machine.id }}</h3>
+                  </div>
+                  {% if row %}<strong>{{ row.status | replace("_", " ") }}</strong>{% else %}<strong>pending</strong>{% endif %}
                 </div>
-                {% if row %}
-                  <strong>{{ row.status | replace("_", " ") }}</strong>
-                {% else %}
-                  <strong>pending</strong>
-                {% endif %}
-              </div>
-              <div class="machine-reading">
-                {% if row and row.minutes_remaining is not none %}
-                  <p class="machine-time">{{ row.minutes_remaining }}<span>min</span></p>
-                  <p class="machine-detail">remaining{% if row.predicted %} · estimated{% endif %}</p>
-                {% elif row %}
-                  <p class="machine-time no-time">—</p>
-                  <p class="machine-detail">No countdown observed</p>
-                {% else %}
-                  <p class="machine-time no-time">—</p>
-                  <p class="machine-detail">Waiting for first check</p>
-                {% endif %}
-              </div>
-            </article>
-          {% endfor %}
-        </div>
-      </section>
-
-      <section class="workspace-panel history-panel" aria-labelledby="history-heading">
-        <div class="panel-heading">
-          <div>
-            <p class="section-kicker">Activity log</p>
-            <h2 id="history-heading">Observed occupied times</h2>
+                <div class="machine-reading">
+                  {% if row and row.minutes_remaining is not none %}
+                    <p class="machine-time">{{ row.minutes_remaining }}<span>min</span></p>
+                    <p class="machine-detail">remaining{% if row.predicted %} · estimated{% endif %}</p>
+                  {% elif row %}
+                    <p class="machine-time no-time">—</p>
+                    <p class="machine-detail">No countdown observed</p>
+                  {% else %}
+                    <p class="machine-time no-time">—</p>
+                    <p class="machine-detail">Waiting for first check</p>
+                  {% endif %}
+                </div>
+              </article>
+            {% endfor %}
           </div>
-          <p class="history-caption">Saved readings from each completed check</p>
-        </div>
-        <div class="timeline" id="timeline">
-          {% for row in history if row.status == "occupied" %}
-            <article>
-              <time data-timestamp="{{ row.observed_at }}">{{ row.observed_at }}</time>
-              <span>Machine <b>{{ row.machine_id }}</b> was occupied</span>
-              <strong class="history-remaining" data-observed-at="{{ row.observed_at }}" data-minutes="{{ row.minutes_remaining }}">{{ row.minutes_remaining }} min left</strong>
-            </article>
-          {% else %}
-            <p class="empty">No occupied readings saved yet.</p>
-          {% endfor %}
-        </div>
-      </section>
-    </main>
+        </section>
+
+        <section class="workspace-panel history-panel" aria-labelledby="history-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">Activity log</p>
+              <h2 id="history-heading">Observed occupied times</h2>
+            </div>
+            <p class="history-caption">Saved readings from each completed check</p>
+          </div>
+          <div class="timeline" id="timeline">
+            {% for row in history if row.status == "occupied" %}
+              <article>
+                <time data-timestamp="{{ row.observed_at }}">{{ row.observed_at }}</time>
+                <span>{{ group.singular_label }} <b>{{ row.machine_id }}</b> was occupied</span>
+                <strong class="history-remaining" data-observed-at="{{ row.observed_at }}" data-minutes="{{ row.minutes_remaining }}">{{ row.minutes_remaining }} min left</strong>
+              </article>
+            {% else %}
+              <p class="empty">No occupied readings saved yet.</p>
+            {% endfor %}
+          </div>
+        </section>
+      </main>
+    </div>
 
     <dialog class="usage-dialog" id="usage-dialog" aria-labelledby="usage-title">
       <div class="dialog-header">

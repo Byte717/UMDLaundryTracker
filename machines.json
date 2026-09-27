@@ -1,0 +1,45 @@
+{
+  "locations": [
+    {
+      "slug": "leonardtown",
+      "name": "Leonardtown",
+      "default_machine_type": "dryers",
+      "machine_types": [
+        {
+          "slug": "washers",
+          "label": "Washers",
+          "singular_label": "Washer",
+          "machines": [
+            {"id": 162, "url": "https://mycscgo.com/laundry/started/f3e7ec29-dd41-45c3-ad10-30288e3e0a57"},
+            {"id": 163, "url": "https://mycscgo.com/laundry/machine/10d00b1e-01f5-44c8-a752-eb7b9d83ab15"},
+            {"id": 164, "url": "https://mycscgo.com/laundry/started/2ef8c7c0-39c7-478c-9e8f-c3136a981098"},
+            {"id": 165, "url": "https://mycscgo.com/laundry/started/9ce150dd-29a8-478b-9708-8ab25e38f30e"},
+            {"id": 166, "url": "https://mycscgo.com/laundry/started/bc4f659f-5a97-4ad1-bcaf-bdd907bebccc"},
+            {"id": 167, "url": "https://mycscgo.com/laundry/started/b3080f2c-3380-463b-b141-8eb26ca75937"},
+            {"id": 168, "url": "https://mycscgo.com/laundry/machine/e594e32a-337f-4aa1-bb0c-d6ddf581baf0"},
+            {"id": 169, "url": "https://mycscgo.com/laundry/machine/d5cc7dfd-21d1-410e-8023-76b9fad70972"},
+            {"id": 170, "url": "https://mycscgo.com/laundry/started/40c0758a-eb15-40df-bc78-75760598daab"},
+            {"id": 171, "url": "https://mycscgo.com/laundry/started/e436028d-0d6e-4c1d-bbac-0206dd921c28"}
+          ]
+        },
+        {
+          "slug": "dryers",
+          "label": "Dryers",
+          "singular_label": "Dryer",
+          "machines": [
+            {"id": 172, "url": "https://mycscgo.com/laundry/machine/8e3384e5-c328-48ca-827c-00baeb2f13c0"},
+            {"id": 173, "url": "https://mycscgo.com/laundry/machine/cc22b21a-00dc-4754-a3a7-ecce537e24ff"},
+            {"id": 174, "url": "https://mycscgo.com/laundry/started/b1a12f7c-363e-4eaf-a880-276c8c033388"},
+            {"id": 175, "url": "https://mycscgo.com/laundry/press-start/3c888544-cf67-43f9-99c5-931b235e1a8c"},
+            {"id": 176, "url": "https://mycscgo.com/laundry/started/dc3b8e33-685e-4433-b04b-42a70b2e8f5a"},
+            {"id": 177, "url": "https://mycscgo.com/laundry/started/b24c0ea4-d5e4-4cf6-9d17-cde87961d6a1"},
+            {"id": 178, "url": "https://mycscgo.com/laundry/press-start/65091005-67c7-46bd-b0ec-47ff77e56405"},
+            {"id": 179, "url": "https://mycscgo.com/laundry/started/2099bfdb-b0b7-4d2e-856b-b35d7a91e195"},
+            {"id": 180, "url": "https://mycscgo.com/laundry/started/00b614f3-13eb-42af-94d6-0322eb430b88"},
+            {"id": 181, "url": "https://mycscgo.com/laundry/press-start/1c6c9f4f-3cf3-4ca3-aedf-87cf89eaf682"}
+          ]
+        }
+      ]
+    }
+  ]
+}
