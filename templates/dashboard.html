@@ -15,7 +15,9 @@
     <header class="site-header">
       <div class="header-inner">
         <div class="header-brand-group">
-          <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Open locations menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Hide locations menu" aria-controls="sidebar" aria-expanded="true" title="Toggle menu">
+            <span class="menu-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
           <a class="brand" href="{{ url_for('home') }}" aria-label="UMD LaundryTrack home">
             <img src="/static/umd-mark.png" alt="">
             <span class="brand-name">UMD LaundryTrack</span>
@@ -34,37 +36,44 @@
     <div class="app-layout">
       <aside class="sidebar" id="sidebar">
         <nav aria-label="Laundry locations">
-          <div class="sidebar-title-row">
-            <p class="sidebar-heading">Locations</p>
-            <button
-              class="sidebar-collapse"
-              id="sidebar-collapse"
-              type="button"
-              aria-label="Collapse locations menu"
-              aria-controls="sidebar"
-              aria-expanded="true"
-              title="Collapse menu"
-            ><span aria-hidden="true">‹</span></button>
-          </div>
-          {% for nav_location in catalog.locations %}
-            <section class="location-group">
-              <p class="location-name" title="{{ nav_location.name }}"><span aria-hidden="true"></span><b>{{ nav_location.name }}</b></p>
-              <div class="location-links">
-                {% for nav_group in nav_location.machine_types %}
-                  <a
-                    href="{{ url_for('dashboard', location_slug=nav_location.slug, machine_type=nav_group.slug) }}"
-                    class="location-link{% if nav_location.slug == location.slug and nav_group.slug == group.slug %} active{% endif %}"
-                    {% if nav_location.slug == location.slug and nav_group.slug == group.slug %}aria-current="page"{% endif %}
-                    title="{{ nav_location.name }} {{ nav_group.label }}"
+          <button class="tree-toggle tree-root-toggle" type="button" aria-expanded="true" aria-controls="locations-tree">
+            <span class="tree-caret" aria-hidden="true">›</span>
+            <span>Locations</span>
+          </button>
+          <div class="tree-children" id="locations-tree">
+            <ul class="tree-list tree-locations">
+              {% for nav_location in catalog.locations %}
+                {% set location_active = nav_location.slug == location.slug %}
+                <li>
+                  <button
+                    class="tree-toggle location-toggle"
+                    type="button"
+                    aria-expanded="{{ 'true' if location_active else 'false' }}"
+                    aria-controls="location-{{ nav_location.slug }}-tree"
                   >
-                    <i class="location-link-icon" aria-hidden="true">{{ nav_group.label[0] }}</i>
-                    <span class="location-link-label">{{ nav_group.label }}</span>
-                    <small>{{ nav_group.machines | length }}</small>
-                  </a>
-                {% endfor %}
-              </div>
-            </section>
-          {% endfor %}
+                    <span class="tree-caret" aria-hidden="true">›</span>
+                    <span>{{ nav_location.name }}</span>
+                  </button>
+                  <div class="tree-children{% if not location_active %} tree-collapsed{% endif %}" id="location-{{ nav_location.slug }}-tree">
+                    <ul class="tree-list machine-type-list">
+                      {% for nav_group in nav_location.machine_types %}
+                        <li>
+                          <a
+                            href="{{ url_for('dashboard', location_slug=nav_location.slug, machine_type=nav_group.slug) }}"
+                            class="location-link{% if location_active and nav_group.slug == group.slug %} active{% endif %}"
+                            {% if location_active and nav_group.slug == group.slug %}aria-current="page"{% endif %}
+                          >
+                            <span>{{ nav_group.label }}</span>
+                            <small>{{ nav_group.machines | length }}</small>
+                          </a>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
         </nav>
       </aside>
       <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Close locations menu"></button>
