@@ -9,6 +9,7 @@ const usageSummary = document.querySelector("#usage-summary");
 const usageChart = document.querySelector("#usage-chart");
 const menuToggle = document.querySelector("#menu-toggle");
 const sidebarScrim = document.querySelector("#sidebar-scrim");
+const sidebarCollapse = document.querySelector("#sidebar-collapse");
 const machineLabel = document.body.dataset.machineLabel || "Machine";
 
 let lastObservedAt = lastSeen.dataset.observedAt || null;
@@ -200,6 +201,19 @@ menuToggle.addEventListener("click", () => {
   setNavigationOpen(!document.body.classList.contains("nav-open"));
 });
 sidebarScrim.addEventListener("click", () => setNavigationOpen(false));
+
+function setSidebarCollapsed(collapsed) {
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  sidebarCollapse.setAttribute("aria-expanded", String(!collapsed));
+  sidebarCollapse.setAttribute("aria-label", collapsed ? "Expand locations menu" : "Collapse locations menu");
+  sidebarCollapse.title = collapsed ? "Expand menu" : "Collapse menu";
+  localStorage.setItem("laundrytrack-sidebar-collapsed", String(collapsed));
+}
+
+setSidebarCollapsed(localStorage.getItem("laundrytrack-sidebar-collapsed") === "true");
+sidebarCollapse.addEventListener("click", () => {
+  setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+});
 
 document.querySelector("#usage-close").addEventListener("click", () => usageDialog.close());
 usageDialog.addEventListener("click", (event) => {

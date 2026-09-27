@@ -34,18 +34,31 @@
     <div class="app-layout">
       <aside class="sidebar" id="sidebar">
         <nav aria-label="Laundry locations">
-          <p class="sidebar-heading">Locations</p>
+          <div class="sidebar-title-row">
+            <p class="sidebar-heading">Locations</p>
+            <button
+              class="sidebar-collapse"
+              id="sidebar-collapse"
+              type="button"
+              aria-label="Collapse locations menu"
+              aria-controls="sidebar"
+              aria-expanded="true"
+              title="Collapse menu"
+            ><span aria-hidden="true">‹</span></button>
+          </div>
           {% for nav_location in catalog.locations %}
             <section class="location-group">
-              <p class="location-name"><span aria-hidden="true"></span>{{ nav_location.name }}</p>
+              <p class="location-name" title="{{ nav_location.name }}"><span aria-hidden="true"></span><b>{{ nav_location.name }}</b></p>
               <div class="location-links">
                 {% for nav_group in nav_location.machine_types %}
                   <a
                     href="{{ url_for('dashboard', location_slug=nav_location.slug, machine_type=nav_group.slug) }}"
                     class="location-link{% if nav_location.slug == location.slug and nav_group.slug == group.slug %} active{% endif %}"
                     {% if nav_location.slug == location.slug and nav_group.slug == group.slug %}aria-current="page"{% endif %}
+                    title="{{ nav_location.name }} {{ nav_group.label }}"
                   >
-                    <span>{{ nav_group.label }}</span>
+                    <i class="location-link-icon" aria-hidden="true">{{ nav_group.label[0] }}</i>
+                    <span class="location-link-label">{{ nav_group.label }}</span>
                     <small>{{ nav_group.machines | length }}</small>
                   </a>
                 {% endfor %}
